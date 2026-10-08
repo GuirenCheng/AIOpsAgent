@@ -1,0 +1,20 @@
+# MCP 服务镜像（cls_server / monitor_server 共用，运行时通过 command 选择启动哪个）
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+COPY mcp_servers ./mcp_servers
+
+# 仅安装 MCP 服务所需依赖（与主应用解耦，镜像更小、启动更快）
+RUN pip install --no-cache-dir \
+    "fastmcp>=2.14.0" \
+    "fastapi>=0.109.0" \
+    "uvicorn[standard]>=0.27.0" \
+    "psutil>=5.9.0" \
+    "tencentcloud-sdk-python-cls>=3.0.0"
+
+EXPOSE 8003 8004

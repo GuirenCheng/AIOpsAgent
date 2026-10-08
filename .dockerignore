@@ -1,0 +1,37 @@
+# 虚拟环境 / 缓存
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 密钥与本地环境（勿打包进镜像）
+.env
+.env.*
+
+# 运行时数据（通过 volume 挂载，不打包进镜像）
+data/
+uploads/
+mcp_servers/data/
+volumes/
+logs/
+*.log
+*.sqlite
+
+# 部署文件（仅宿主机需要）
+deploy/
+docker-compose.yml
+vector-database.yml
+Dockerfile
+Dockerfile.mcp
+.dockerignore
+
+# IDE / 工具
+.idea/
+.vscode/
+.git/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
