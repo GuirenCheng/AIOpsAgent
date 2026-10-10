@@ -1,7 +1,28 @@
 // AIOpsAgent 前端应用
+//
+// 生产鉴权：所有同源 /api 请求自动附加 X-API-Key。
+// 密钥不写死在代码里 —— 由服务端在返回首页 index.html 时注入 window.API_AUTH_KEY
+// （值来自 .env 的 API_AUTH_KEY），避免把密钥提交进仓库。
+// 注意：该 key 对「能打开页面的用户」仍是可见的，用于挡住「能直连 API 端口、但未打开
+// 页面」的匿名/脚本请求；多人或公网部署请改用 Nginx 边缘鉴权（Basic Auth / SSO）。
+const API_AUTH_KEY = window.API_AUTH_KEY || '';
+const _nativeFetch = window.fetch.bind(window);
+window.fetch = function (url, options = {}) {
+    const u = typeof url === 'string' ? url : (url && url.url) || '';
+    if (API_AUTH_KEY && u.indexOf('/api/') !== -1) {
+        const headers = new Headers(options.headers || {});
+        if (!headers.has('X-API-Key')) {
+            headers.set('X-API-Key', API_AUTH_KEY);
+        }
+        options = Object.assign({}, options, { headers: headers });
+    }
+    return _nativeFetch(url, options);
+};
+
 class AIOpsAgentApp {
     constructor() {
-        this.apiBaseUrl = 'http://localhost:9900/api';
+        // 使用相对路径：无论直连 uvicorn 还是经 Nginx 反向代理（生产）都能正常工作
+        this.apiBaseUrl = '/api';
         this.currentMode = 'quick'; // 'quick' 或 'stream'
         this.sessionId = this.generateSessionId();
         this.isStreaming = false;

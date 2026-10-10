@@ -3,11 +3,12 @@
 主应用入口，配置路由，中间件，静态文件等
 '''
 import os
+import json
 from contextlib import asynccontextmanager
 
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from app.api import health, chat, file, aiops
 from app.config import config
 from app.core.middleware import (
@@ -29,7 +30,8 @@ async def lifespan(app:FastAPI):
     logger.info(f"🚀 {config.app_name} v{config.app_version} 启动中...")
     logger.info(f"📝 环境:{'开发' if config.debug else '生产'}")
     logger.info(f"🌐 监听地址: http://{config.host}:{config.port}")
-    logger.info(f'📚 API 文档: http://{config.host}:{config.port}/docs')
+    if config.enable_docs:
+        logger.info(f'📚 API 文档: http://{config.host}:{config.port}/docs')
 
     # 连接Milvus（失败不阻断启动，降级为「依赖不可用」，由 /health 上报状态）
     logger.info('🔌 正在连接 Milvus...')
@@ -53,6 +55,10 @@ app = FastAPI(
     title=config.app_name,
     version=config.app_version,
     description='基于LangChain的智能oncall运维系统',
+    # 生产环境关闭 API 文档（/docs /redoc /openapi.json），减少信息暴露
+    docs_url='/docs' if config.enable_docs else None,
+    redoc_url='/redoc' if config.enable_docs else None,
+    openapi_url='/openapi.json' if config.enable_docs else None,
     lifespan = lifespan
 )
 
@@ -89,10 +95,15 @@ app.mount('/static', StaticFiles(directory=static_dir), name='static')
 
 @app.get('/')
 async def root():
-    '''返回首页'''
+    '''返回首页，并向前端注入 API 鉴权 key（密钥不落盘到仓库）'''
     index_path = os.path.join(static_dir,'index.html')
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        with open(index_path, 'r', encoding='utf-8') as f:
+            html = f.read()
+        # 前端 app.js 从 window.API_AUTH_KEY 读取；由服务端从 .env 注入，仓库中无明文密钥
+        inject = '<script>window.API_AUTH_KEY = ' + json.dumps(config.api_auth_key) + ';</script>'
+        html = html.replace('</head>', inject + '</head>', 1)
+        return HTMLResponse(html)
     return {
         'message':f"Welcome to {config.app_name} API",
         'version':config.app_version,

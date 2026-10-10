@@ -8,6 +8,7 @@ SERVER_URL = http://localhost:9900
 UPLOAD_API = $(SERVER_URL)/api/upload
 HEALTH_CHECK_API = $(SERVER_URL)/health
 DOCS_DIR = aiops-docs
+API_KEY := $(shell grep -E '^API_AUTH_KEY=' .env 2>/dev/null | head -n1 | sed 's/^API_AUTH_KEY=//' | tr -d '\r')
 MILVUS_CONTAINER = milvus-standalone
 
 # 颜色输出
@@ -450,7 +451,8 @@ upload:
 			echo "$(YELLOW)  [$$count] 上传文件: $$filename$(NC)"; \
 			response=$$(curl -s -w "\n%{http_code}" -X POST $(UPLOAD_API) \
 				-F "file=@$$file" \
-				-H "Accept: application/json"); \
+				-H "Accept: application/json" \
+				-H "X-API-Key: $(API_KEY)"); \
 			http_code=$$(echo "$$response" | tail -n1); \
 			body=$$(echo "$$response" | sed '$$d'); \
 			if [ "$$http_code" = "200" ]; then \
@@ -489,8 +491,9 @@ test-upload:
 		echo "$(YELLOW)上传文件: $$first_file$(NC)"; \
 		curl -X POST $(UPLOAD_API) \
 			-F "file=@$$first_file" \
+			-H "X-API-Key: $(API_KEY)" \
 			-H "Accept: application/json" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin), indent=2, ensure_ascii=False))" 2>/dev/null || \
-			curl -X POST $(UPLOAD_API) -F "file=@$$first_file"; \
+			curl -X POST $(UPLOAD_API) -H "X-API-Key: $(API_KEY)" -F "file=@$$first_file"; \
 	else \
 		echo "$(RED)测试文件不存在$(NC)"; \
 	fi

@@ -31,10 +31,17 @@ def test_cors_defaults_to_same_origin():
 
 
 def test_auth_off_and_rate_limit_on_by_default():
-    """鉴权默认关闭（向后兼容），限流默认开启。"""
-    assert config.api_auth_enabled is False
-    assert config.rate_limit_enabled is True
-    assert config.rate_limit_per_minute > 0
+    """鉴权默认关闭（向后兼容），限流默认开启。
+
+    校验的是「代码默认值」而非本地 .env 的运行时值——生产 .env 会把
+    API_AUTH_ENABLED 打开，因此不能再用 config.api_auth_enabled 断言。
+    """
+    from app.config import Settings
+
+    defaults = {f: Settings.model_fields[f].default for f in Settings.model_fields}
+    assert defaults["api_auth_enabled"] is False
+    assert defaults["rate_limit_enabled"] is True
+    assert defaults["rate_limit_per_minute"] > 0
 
 
 def test_question_length_is_validated():

@@ -14,6 +14,15 @@ for _proxy_var in ("NO_PROXY", "no_proxy"):
     _entries.update({"127.0.0.1", "localhost", "::1"})
     os.environ[_proxy_var] = ",".join(sorted(_entries))
 
+# 版本号从安装包元数据读取，与 pyproject.toml 保持一致（避免两处漂移）。
+# 未安装（直接源码运行）时回退到字面版本号。
+try:
+    from importlib.metadata import version as _pkg_version
+
+    _APP_VERSION = _pkg_version("aiops-agent-py")
+except Exception:
+    _APP_VERSION = "1.2.1"
+
 class Settings(BaseSettings):
     '''应用配置'''
 
@@ -26,7 +35,7 @@ class Settings(BaseSettings):
 
     # 应用配置
     app_name:str = 'AIOpsAgent'
-    app_version:str = '1.0.0'
+    app_version:str = _APP_VERSION
     debug:bool = False
     host:str = '0.0.0.0'
     port:int = 9900
@@ -69,6 +78,8 @@ class Settings(BaseSettings):
     cors_allow_credentials:bool = False
     # 单个问题最大长度（防滥用）
     max_question_length:int = 4000
+    # API 文档（/docs /redoc /openapi.json）是否对外暴露；生产建议关闭以减少信息泄露
+    enable_docs:bool = True
     # 会话持久化（LangGraph checkpointer：SQLite 落盘，重启不丢会话）
     # 需安装 langgraph-checkpoint-sqlite；未安装时自动回退到内存 MemorySaver
     session_store_enabled:bool = True

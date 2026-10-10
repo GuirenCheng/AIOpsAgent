@@ -108,7 +108,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 9900
 # 9. 上传文档到向量库（新开一个 PowerShell 窗口）
 # 等待服务启动完成后执行
 timeout /t 5
-python -c "import requests, os, time; [requests.post('http://localhost:9900/api/upload', files={'file': open(f'aiops-docs/{f}', 'rb')}) or time.sleep(1) for f in os.listdir('aiops-docs') if f.endswith('.md')]"
+python -c "import requests, os, time; [requests.post('http://localhost:9900/api/upload', headers={'X-API-Key': 'your-api-key'}, files={'file': open(f'aiops-docs/{f}', 'rb')}) or time.sleep(1) for f in os.listdir('aiops-docs') if f.endswith('.md')]"
 ```
 
 **Windows 一键启动脚本**（推荐）
@@ -129,6 +129,11 @@ python -c "import requests, os, time; [requests.post('http://localhost:9900/api/
 
 ## 📡 API 接口
 
+> **鉴权说明**：生产环境已开启 API 鉴权（`.env` 中 `API_AUTH_ENABLED=true`）。
+> 所有 `/api/*` 请求需携带请求头 `X-API-Key: <你的 API_AUTH_KEY>`，否则返回 401。
+> `/health` 与静态页面不拦截；Web 前端会自动附带该头，无需手动处理。
+> 用 curl / 脚本调用时，把下面示例里的 `your-api-key` 换成 `.env` 里的 `API_AUTH_KEY`。
+
 ### 核心接口
 
 | 功能 | 方法 | 路径 | 说明 |
@@ -145,17 +150,20 @@ python -c "import requests, os, time; [requests.post('http://localhost:9900/api/
 # 普通对话
 curl -X POST "http://localhost:9900/api/chat" \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
   -d '{"Id":"session-123","Question":"你好"}'
 
 # 流式对话
 curl -X POST "http://localhost:9900/api/chat_stream" \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
   -d '{"Id":"session-123","Question":"你好"}' \
   --no-buffer
 
 # AIOps 诊断
 curl -X POST "http://localhost:9900/api/aiops" \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
   -d '{"session_id":"session-123"}' \
   --no-buffer
 ```
@@ -276,6 +284,7 @@ CHUNK_OVERLAP=100
 # 或使用 API
 curl -X POST "http://localhost:9900/api/aiops" \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
   -d '{"session_id":"test"}' \
   --no-buffer
 ```

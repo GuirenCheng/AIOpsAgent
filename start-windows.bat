@@ -151,9 +151,10 @@ if errorlevel 1 (
     
     REM 调用 API 上传 aiops-docs 文档到向量数据库
     echo [8/8] 上传文档到向量数据库...
+    for /f "usebackq tokens=1,* delims==" %%a in (`findstr /b "API_AUTH_KEY=" .env`) do set "API_KEY=%%b"
     for %%f in (aiops-docs\*.md) do (
         echo   上传: %%~nxf
-        curl -s -X POST http://localhost:9900/api/upload -F "file=@%%f" >nul 2>&1
+        curl -s -X POST http://localhost:9900/api/upload -H "X-API-Key: !API_KEY!" -F "file=@%%f" >nul 2>&1
     )
     echo [成功] 文档上传完成
 )
