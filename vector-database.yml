@@ -18,7 +18,7 @@ services:
 
   minio:
     container_name: milvus-minio
-    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    image: cgr.dev/chainguard/minio:latest  # 原 minio/minio 已于2026-09被MinIO官方下架，改用Chainguard维护的minio
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -27,12 +27,7 @@ services:
       - "127.0.0.1:9000:9000"
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/minio_data
-    command: minio server /minio_data --console-address ":9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+    command: server /minio_data --console-address ":9001"
 
   standalone:
     container_name: milvus-standalone
@@ -64,7 +59,7 @@ services:
     container_name: milvus-attu
     image: zilliz/attu:v2.5
     ports:
-      - "127.0.0.1:8000:3000" # 把本地的 8000 端口映射到容器的 3000 端口 (Attu 默认端口，仅本机可访问)
+      - "127.0.0.1:8001:3000" # 把本地的 8001 端口映射到容器的 3000 端口 (Attu 默认端口，仅本机可访问；8000 已被占用故改用 8001)
     environment:
       # MILVUS_URL 指向 Docker 网络里的 Milvus standalone 服务
       MILVUS_URL: standalone:19530

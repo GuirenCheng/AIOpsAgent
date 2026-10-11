@@ -3,22 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能OnCall助手</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <title>智能OnCall助手 · AIOps Agent</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='24' height='24' rx='6' fill='url(%23g)'/%3E%3Cpath d='M12 5l2.1 4.9L19 12l-4.9 2.1L12 19l-2.1-4.9L5 12l4.9-2.1z' fill='white'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/static/styles.css?v=2">
     <!-- Markdown 渲染库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
-    <!-- 代码高亮库（可选） -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+    <!-- 代码高亮库（明暗两套主题，随主题切换） -->
+    <link id="hljs-theme-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" disabled>
+    <link id="hljs-theme-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/es/highlight.min.js"></script>
+    <!-- 主题初始化（在渲染前设置，避免闪烁） -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('aiops-theme-v2');
+                if (!t) { t = 'dark'; }
+                document.documentElement.setAttribute('data-theme', t);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
 </head>
 <body>
     <div class="app-layout">
         <!-- 左侧边栏 -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h2 class="sidebar-title">智能OnCall助手</h2>
+                <div class="brand">
+                    <div class="brand-logo">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="white"/>
+                        </svg>
+                    </div>
+                    <div class="brand-text">
+                        <h2 class="sidebar-title">智能OnCall助手</h2>
+                        <span class="sidebar-subtitle">AIOps Agent</span>
+                    </div>
+                </div>
+                <button class="theme-toggle" id="themeToggleBtn" title="切换深浅色主题" aria-label="切换主题">
+                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/>
+                        <path d="M12 2V4M12 20V22M4.93 4.93L6.34 6.34M17.66 17.66L19.07 19.07M2 12H4M20 12H22M6.34 17.66L4.93 19.07M19.07 4.93L17.66 6.34" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                </button>
             </div>
-            
+
             <div class="sidebar-content">
                 <button class="new-chat-btn" id="newChatBtn">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -26,7 +59,7 @@
                     </svg>
                     <span>新建对话</span>
                 </button>
-                
+
                 <div class="chat-history-section">
                     <div class="history-header">
                         <span>近期对话</span>
@@ -35,7 +68,12 @@
                         <!-- 历史对话列表将在这里动态生成 -->
                     </div>
                 </div>
-                
+
+            </div>
+
+            <div class="sidebar-footer">
+                <span class="status-dot"></span>
+                <span>v1.2.1 · 生产模式</span>
             </div>
         </aside>
 
@@ -49,17 +87,19 @@
                 </svg>
                 <span>AI Ops</span>
             </button>
+
             <div class="chat-container">
                 <div class="welcome-greeting" id="welcomeGreeting">
-                    <p>你好！我是智能Oncall小助手</p>
+                    <p class="welcome-line">你好，有什么可以帮你？</p>
                 </div>
+
                 <div class="chat-messages" id="chatMessages">
                 </div>
-                
+
                 <div class="chat-input-container">
                     <div class="input-group-wrapper">
                         <div class="input-wrapper">
-                            <input type="text" id="messageInput" placeholder="问问智能OnCall助手" maxlength="1000" class="message-input">
+                            <input type="text" id="messageInput" placeholder="问问智能OnCall助手…" maxlength="1000" class="message-input">
                             <div class="input-bottom-bar">
                                 <div class="tools-btn-wrapper">
                                     <button class="tools-btn" id="toolsBtn" title="更多选项">
@@ -127,6 +167,30 @@
         </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2"></script>
+    <!-- 主题切换（不侵入 app.js 的核心类） -->
+    <script>
+        (function () {
+            function applyTheme(t) {
+                document.documentElement.setAttribute('data-theme', t);
+                var light = document.getElementById('hljs-theme-light');
+                var dark = document.getElementById('hljs-theme-dark');
+                if (light) light.disabled = (t === 'dark');
+                if (dark) dark.disabled = (t !== 'dark');
+                try { localStorage.setItem('aiops-theme-v2', t); } catch (e) {}
+            }
+
+            // 按 head 中已设置的 data-theme 同步高亮主题
+            applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+
+            var toggle = document.getElementById('themeToggleBtn');
+            if (toggle) {
+                toggle.addEventListener('click', function () {
+                    var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                    applyTheme(cur);
+                });
+            }
+        })();
+    </script>
 </body>
 </html>

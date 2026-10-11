@@ -184,7 +184,7 @@ async def replanner(state:PlanExecuteState)->Dict[str,Any]:
                 ("user",f"⚠️ 重要提示：已执行 {len(past_steps)} 个步骤，请优先考虑是否信息已足够生成响应（respond）")
             ]
 
-            act = await replanner_chain.invoke({
+            act = await replanner_chain.ainvoke({
                 'messages': messages,
                 'tools_description': tools_description,
             })
@@ -262,7 +262,7 @@ async def _generate_response(state:PlanExecuteState,llm:ChatQwen)->Dict[str,Any]
             ("user",f"请基于以上消息生成全面的最终响应")
         ]
 
-        response_obj = await response_gen.invoke({"messages":messages})
+        response_obj = await response_gen.ainvoke({"messages":messages})
 
         # 处理返回结果
         if isinstance(response_obj,Response):

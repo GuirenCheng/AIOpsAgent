@@ -137,15 +137,20 @@ class RagAgentService:
         if self._agent_initialized:
             return
 
-        # 使用全局 MCP 客户端管理器(带重试拦截器）
-        mcp_client = await get_mcp_client_with_retry()
+        # MCP 工具加载失败不应阻断服务：MCP 服务（CLS/Monitor）未启动时降级为
+        # 仅本地工具（retrieve_knowledge / get_current_time），与 Milvus 不可用时的
+        # 降级策略一致。langchain-mcp-adapters 内部用 asyncio.TaskGroup 并发连接，
+        # 任一服务器连不上会把真实异常包成 "unhandled errors in a TaskGroup"。
+        try:
+            # 使用全局 MCP 客户端管理器(带重试拦截器）
+            mcp_client = await get_mcp_client_with_retry()
 
-        # 获取 MCP 工具
-        mcp_tools = await mcp_client.get_tools()
-        logger.info(f"成功加载 {len(mcp_tools)} 个MCP 工具")
-
-        # 将 MCP 工具添加到实例变量中
-        self.mcp_tools = mcp_tools
+            # 获取 MCP 工具
+            self.mcp_tools = await mcp_client.get_tools()
+            logger.info(f"成功加载 {len(self.mcp_tools)} 个MCP 工具")
+        except Exception as e:
+            self.mcp_tools = []
+            logger.warning(f"MCP 工具加载失败，降级为仅本地工具（服务仍可用）：{e}")
 
         # 合并所有工具
         all_tools = self.tools + self.mcp_tools
@@ -359,7 +364,7 @@ class RagAgentService:
             }
             raise
 
-    def get_session_history(self,session_id:str)->list:
+    async def get_session_history(self,session_id:str)->list:
         """
         获取会话历史（从 checkpointer 中读取）
 
@@ -370,26 +375,17 @@ class RagAgentService:
             list: 消息历史列表 [{"role": "user|assistant", "content": "...", "timestamp": "..."}]
         """
         try:
-            # 使用checkpointer的get方法获取最新的检查点
             config = {"configurable":{"thread_id":session_id}}
 
-            # 获取该 thread 的最新检查点
-            checkpoint_tuple = self.checkpointer.get(config)
+            # AsyncSqliteSaver 的同步 get 在事件循环线程会抛 InvalidStateError，须用异步 aget
+            checkpoint = await self.checkpointer.aget(config)
 
-            if not checkpoint_tuple:
+            if not checkpoint:
                 logger.info(f"获取会话历史:{session_id},消息数量:0")
                 return []
 
-            # checkpoint_tuple 可能是命名元组或普通元组，安全地提取 checkpoint
-            # 通常第一个元素是 checkpoint 数据
-            if hasattr(checkpoint_tuple,"checkpoint"):
-                checkpoint_data = checkpoint_tuple.checkpoint # type:ignore
-            else:
-                # 如果有普通元组，第一个元素是checkpoint
-                checkpoint_data = checkpoint_tuple[0] if checkpoint_tuple else {}
-
-            # 从检查点中提取消息
-            messages = checkpoint_data.get('channel_values',{}).get('messages',[])
+            # checkpoint 为 dict，消息存放在 channel_values.messages
+            messages = checkpoint.get('channel_values',{}).get('messages',[])
 
             # 转换为前端需要的格式
             history = []
@@ -424,7 +420,7 @@ class RagAgentService:
             logger.error(f"获取会话历史失败:{session_id},错误：{e}")
             return []
 
-    def clear_session(self,session_id:str)->bool:
+    async def clear_session(self,session_id:str)->bool:
         """
          清空会话历史（从 checkpointer 中删除）
 
@@ -435,8 +431,8 @@ class RagAgentService:
              bool: 是否成功
          """
         try:
-            # 使用checkpointer 的delete_thread方法删除该 thread 的所有检查点
-            self.checkpointer.delete_thread(session_id)
+            # AsyncSqliteSaver 的同步 delete_thread 在事件循环线程会抛 InvalidStateError，须用异步
+            await self.checkpointer.adelete_thread(session_id)
 
             logger.info(f"已清除会话历史：{session_id}")
             return True

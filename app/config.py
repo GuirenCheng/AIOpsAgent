@@ -1,6 +1,7 @@
 from typing import Dict,Any
 from pydantic_settings import BaseSettings,SettingsConfigDict
 import os
+import sys
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,6 +14,17 @@ for _proxy_var in ("NO_PROXY", "no_proxy"):
     _entries = {e.strip() for e in os.environ.get(_proxy_var, "").split(",") if e.strip()}
     _entries.update({"127.0.0.1", "localhost", "::1"})
     os.environ[_proxy_var] = ",".join(sorted(_entries))
+
+# Windows 控制台默认 GBK（cp936）。loguru 的控制台 sink 写到 sys.stdout（见 app/utils/logger.py），
+# 而非 tty 环境下 stdout 的 errors='surrogateescape'、stderr 为 'backslashreplace'：
+# 前者遇到 emoji 会抛 UnicodeEncodeError，导致日志刷屏报错、掩盖真实异常。
+# 这里把两者都重配为「替换不可编码字符」：中文仍正常显示，emoji 降级为占位符，不再抛异常。
+if sys.platform == "win32":
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(errors="replace")
+        except Exception:
+            pass
 
 # 版本号从安装包元数据读取，与 pyproject.toml 保持一致（避免两处漂移）。
 # 未安装（直接源码运行）时回退到字面版本号。
