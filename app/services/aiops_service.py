@@ -8,7 +8,7 @@ from langgraph.graph import StateGraph, END
 from loguru import logger
 
 from app.agent.aiops import executor, planner, replanner
-from app.agent.aiops.state import PlanExecuteState
+from app.agent.aiops.state import PlanExecuteState, coerce_step, coerce_observation
 from app.core.checkpointer import create_checkpointer
 
 # 节点名称
@@ -261,7 +261,8 @@ class AIOpsService:
             else:
                 yield event
 
-    def _format_planner_event(self,state:Dict | None) -> Dict:
+    @staticmethod
+    def _format_planner_event(state:Dict | None) -> Dict:
         '''格式化Planner节点事件'''
         if not state:
             return {
@@ -270,16 +271,30 @@ class AIOpsService:
                 "message":"规划节点执行中"
             }
 
-        plan = state.get("plan",[])
+        raw_plan = state.get("plan",[])
+        plan = [coerce_step(s) for s in raw_plan]
+        # 对外 plan 字段保持 List[str]（扁平化描述），结构细节走新增的 plan_details
+        flat_plan = [s.description for s in plan]
+        plan_details = [
+            {
+                "description": s.description,
+                "evidence": s.evidence,
+                "tool_name": s.tool_name,
+                "tool_args": s.tool_args,
+            }
+            for s in plan
+        ]
 
         return {
             'type':'plan',
             'stage':'plan_created',
             "message":f"执行计划已制定，共{len(plan)}个步骤",
-            "plan":plan
+            "plan":flat_plan,
+            "plan_details":plan_details,
         }
 
-    def _format_executor_event(self,state: Dict | None) -> Dict:
+    @staticmethod
+    def _format_executor_event(state: Dict | None) -> Dict:
         '''格式化Executor节点事件'''
         if not state:
             return {
@@ -292,12 +307,13 @@ class AIOpsService:
         past_steps = state.get("past_steps",[])
 
         if past_steps:
-            last_steps,_ = past_steps[-1]
+            last = coerce_observation(past_steps[-1])
+            current_step = last.step_description
             return {
                 "type":"step_complete",
                 "stage":"step_executed",
                 "message":f"步骤执行完成 ({len(past_steps)}/{len(past_steps)+len(plan)})",
-                "current_step":last_steps,
+                "current_step":current_step,
                 "remaining_steps":len(plan)
             }
         else:
@@ -307,7 +323,8 @@ class AIOpsService:
                 "message":"开始执行步骤"
             }
 
-    def _format_replanner_event(self,state: Dict | None) -> Dict:
+    @staticmethod
+    def _format_replanner_event(state: Dict | None) -> Dict:
         '''格式化Replanner 节点事件'''
         if not state:
             return {

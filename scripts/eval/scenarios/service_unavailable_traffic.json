@@ -1,0 +1,38 @@
+{
+  "name": "service_unavailable_traffic",
+  "description": "多实例 CPU 飙高、高 QPS 无错误，疑似流量突增",
+  "alert_input": "诊断 api-gateway 的 ServiceUnavailable 告警，多个实例 CPU 使用率飙高，请分析根因并生成诊断报告。",
+  "knowledge": "根据历史经验，api-gateway 在促销等场景下常因流量突增导致 CPU 飙高，需要扩容或限流。",
+  "time_now": "2026-10-12 10:00:00",
+  "tools": {
+    "search_topic_by_service_name": {
+      "return": {
+        "total": 1,
+        "topics": [
+          {"topic_id": "topic-004", "topic_name": "api-gateway", "service_name": "api-gateway"}
+        ]
+      }
+    },
+    "search_log": {
+      "return": {
+        "total": 3,
+        "logs": [
+          {"timestamp": "2026-10-12 09:58:00", "level": "INFO", "message": "QPS 125000, all instances busy, no error"}
+        ]
+      }
+    },
+    "query_cpu_metrics": {
+      "return": {
+        "service_name": "api-gateway",
+        "statistics": {"avg": 88.0, "max": 95.0, "spike_detected": true, "instance_count": 10}
+      }
+    },
+    "get_host_metrics": {
+      "return": {"cpu": {"percent": 40.0}, "memory": {"percent": 55.0}, "disk": {"percent": 30.0}}
+    }
+  },
+  "expected": {
+    "root_cause_keywords": ["流量", "突增", "扩容", "限流"],
+    "min_keyword_hits": 2
+  }
+}

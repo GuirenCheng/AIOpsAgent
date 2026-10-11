@@ -13,18 +13,18 @@ from app.agent.aiops.utils import format_tools_description
 from app.agent.mcp_client import get_mcp_client_with_retry
 from app.config import config
 from app.tools.knowledge_tool import retrieve_knowledge
-from app.agent.aiops.state import PlanExecuteState
+from app.agent.aiops.state import PlanExecuteState, PlanStep, coerce_step
 from app.tools.time_tool import get_current_time
 
 
 class Plan(BaseModel):
     '''计划的输出格式'''
-    steps:List[str] = Field(
-        description = '完成任务所需的不同步骤，这些步骤应该按顺序执行，每一步都建立在前一步的基础上。'
+    steps: List[PlanStep] = Field(
+        description='完成任务所需的不同步骤，这些步骤应该按顺序执行，每一步都建立在前一步的基础上。'
     )
 
 
-#Planner 提示词
+# Planner 提示词
 planner_prompt = ChatPromptTemplate.from_messages(
     [
         (
@@ -40,26 +40,36 @@ planner_prompt = ChatPromptTemplate.from_messages(
 
                 {experience_context}
 
-                对于给定的任务，请创建一个简单的、逐步的计划来完成它。计划应该：
-                - 将任务分解为逻辑上独立的步骤
-                - 每个步骤应该明确使用哪些工具(如果需要工具的话)来获取信息, 最好能同时提供工具执行所需要的参数
-                - 步骤之间应该有清晰的依赖关系
-                - 步骤描述要具体、可操作
+                对于给定的任务，请创建一个简单的、逐步的计划来完成它。计划的每一步都是如下结构的对象：
+                - description（字符串）：该步骤的具体、可操作描述，一个逻辑动作
+                - evidence（字符串）：该步骤要收集的证据类型，必须是以下之一：
+                  * "logs"：CLS/search_log 等日志证据
+                  * "metrics"：CPU、内存等监控指标证据
+                  * "knowledge"：内部知识库经验
+                  * "time"：当前时间/时间戳
+                  * "synthesis"：综合分析/生成报告，不产生新证据
+                - tool_name（字符串，可选）：如果该步骤明确需要某个工具，填写工具名；否则留空，由 Executor 根据描述选择
+                - tool_args（对象，可选）：tool_name 对应的调用参数；不确定时留空
+
+                制定计划的要求：
+                - 将任务分解为逻辑上独立的步骤，步骤之间应该有清晰的依赖关系
+                - 优先收集证据（logs/metrics/knowledge/time），最后以 synthesis 步骤收尾
                 - **如果有相关经验文档，请参考其中的方法和步骤制定计划**
 
-                示例输入："分析当前系统的性能问题"
-                示例输出（假设有对应工具）：
-                步骤1: 使用 get_metrics 工具收集系统的 CPU 和内存使用情况
-                步骤2: 使用 query_logs 工具检查最近的错误日志
-                步骤3: 使用 query_database 工具分析慢查询日志
-                步骤4: 综合以上信息生成性能分析报告
+                示例（假设有对应工具）：
+                [
+                  {{"description": "查询 data-sync-service 最近15分钟的 CPU 指标", "evidence": "metrics", "tool_name": "query_cpu_metrics", "tool_args": {{"service_name": "data-sync-service"}}}},
+                  {{"description": "检索服务日志中的异常与报错", "evidence": "logs", "tool_name": null, "tool_args": null}},
+                  {{"description": "综合分析上述证据并生成诊断报告", "evidence": "synthesis", "tool_name": null, "tool_args": null}}
+                ]
             ''').strip(),
         ),
-            ('placeholder','{messages}'),
+        ('placeholder', '{messages}'),
     ]
 )
 
-async def planner(state:PlanExecuteState) ->Dict[str,Any]:
+
+async def planner(state: PlanExecuteState) -> Dict[str, Any]:
     """
     规划节点：根据用户输入生成执行计划
 
@@ -69,7 +79,7 @@ async def planner(state:PlanExecuteState) ->Dict[str,Any]:
     """
     logger.info("=== Planner：指定执行计划 ===")
 
-    input_text = state.get('input','')
+    input_text = state.get('input', '')
     logger.info(f'用户输入: {input_text}')
 
     try:
@@ -111,28 +121,28 @@ async def planner(state:PlanExecuteState) ->Dict[str,Any]:
         if experience_docs:
             experience_context = dedent(f'''
                 ### 相关经验文档
-                
+
                 以下是从知识库中检索到的相关经验和最佳实践，请参考这些经验指定执行计划：
-                
+
                 {experience_docs}
-                
+
                 ---
             ''').strip()
 
         # 步骤4：创建LLM并生成计划
         llm = ChatQwen(
-            model = config.rag_model,
+            model=config.rag_model,
             api_key=config.dashscope_api_key,
-            temperature = 0
+            temperature=0
         )
 
         planner_chain = planner_prompt | llm.with_structured_output(Plan)
 
         # 调用LLM生成计划
         plan_result = await planner_chain.ainvoke({
-            'messages':[("user",input_text)],
-            'tools_description':tools_description,
-            'experience_context':experience_context,
+            'messages': [("user", input_text)],
+            'tools_description': tools_description,
+            'experience_context': experience_context,
         })
 
         # 提取步骤列表
@@ -140,22 +150,24 @@ async def planner(state:PlanExecuteState) ->Dict[str,Any]:
             plan_steps = plan_result.steps
         else:
             # 如果返回的是字典，提取steps字段
-            plan_steps = plan_result.get("steps",[])
+            plan_steps = plan_result.get("steps", [])
+
+        # 归一化为 PlanStep（兼容 structured output 返回 dict 的情况）
+        plan_steps = [coerce_step(s) for s in plan_steps]
 
         logger.info(f"计划已生成，共{len(plan_steps)}个步骤")
-        for i,step in enumerate(plan_steps,1):
-            logger.info(f"  步骤{i}: {step}")
+        for i, step in enumerate(plan_steps, 1):
+            logger.info(f"  步骤{i}: {step.description} [evidence={step.evidence}]")
 
-        return {'plan':plan_steps}
+        return {'plan': plan_steps}
 
     except Exception as e:
-        logger.info(f"生成计划失败：{e}",exc_info = True)
+        logger.info(f"生成计划失败：{e}", exc_info=True)
         # 返回一个默认计划
         return {
-            'plan':[
-                '收集相关信息',
-                '分析数据',
-                '生成报告'
+            'plan': [
+                PlanStep(description='收集相关信息（知识库与时间范围）', evidence='knowledge'),
+                PlanStep(description='分析数据', evidence='synthesis'),
+                PlanStep(description='生成报告', evidence='synthesis'),
             ]
         }
-

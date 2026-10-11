@@ -1,0 +1,32 @@
+{
+  "name": "disk_full",
+  "description": "磁盘写满，日志出现 No space left on device",
+  "alert_input": "诊断 data-sync-service 的 DiskSpaceLow 告警，磁盘使用率达到 97%，请分析根因并生成诊断报告。",
+  "knowledge": "根据历史经验，磁盘写满通常由日志未轮转或大文件堆积导致，需要清理磁盘空间。",
+  "time_now": "2026-10-12 10:00:00",
+  "tools": {
+    "get_host_metrics": {
+      "return": {"cpu": {"percent": 20.0}, "memory": {"percent": 40.0}, "disk": {"percent": 97.0}}
+    },
+    "search_topic_by_service_name": {
+      "return": {
+        "total": 1,
+        "topics": [
+          {"topic_id": "topic-005", "topic_name": "data-sync-service", "service_name": "data-sync-service"}
+        ]
+      }
+    },
+    "search_log": {
+      "return": {
+        "total": 3,
+        "logs": [
+          {"timestamp": "2026-10-12 09:57:00", "level": "ERROR", "message": "write failed: No space left on device"}
+        ]
+      }
+    }
+  },
+  "expected": {
+    "root_cause_keywords": ["磁盘", "空间不足", "清理", "写满"],
+    "min_keyword_hits": 2
+  }
+}

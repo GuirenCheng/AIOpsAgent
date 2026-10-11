@@ -1,0 +1,42 @@
+{
+  "name": "slow_response_db",
+  "description": "接口响应慢，日志显示慢 SQL 与连接池超时",
+  "alert_input": "诊断 payment-service 的 SlowResponse 告警，接口平均响应时间超过 3 秒，请分析根因并生成诊断报告。",
+  "knowledge": "根据历史经验，payment-service 响应慢通常与数据库慢查询或连接池耗尽有关。",
+  "time_now": "2026-10-12 10:00:00",
+  "tools": {
+    "search_topic_by_service_name": {
+      "return": {
+        "total": 1,
+        "topics": [
+          {"topic_id": "topic-003", "topic_name": "payment-service", "service_name": "payment-service"}
+        ]
+      }
+    },
+    "search_log": {
+      "return": {
+        "total": 4,
+        "logs": [
+          {"timestamp": "2026-10-12 09:59:00", "level": "WARN", "message": "slow SQL detected: SELECT ... took 8500ms"},
+          {"timestamp": "2026-10-12 09:59:10", "level": "ERROR", "message": "connection pool timeout, waiting for connection"}
+        ]
+      }
+    },
+    "query_cpu_metrics": {
+      "return": {
+        "service_name": "payment-service",
+        "statistics": {"avg": 45.0, "max": 55.0, "spike_detected": false}
+      }
+    },
+    "query_memory_metrics": {
+      "return": {
+        "service_name": "payment-service",
+        "statistics": {"avg": 50.0, "max": 55.0, "memory_pressure": false}
+      }
+    }
+  },
+  "expected": {
+    "root_cause_keywords": ["慢查询", "数据库", "SQL", "连接池"],
+    "min_keyword_hits": 2
+  }
+}

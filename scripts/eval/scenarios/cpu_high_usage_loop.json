@@ -1,0 +1,43 @@
+{
+  "name": "cpu_high_usage_loop",
+  "description": "CPU 持续 >80%，日志显示同一线程重复堆栈",
+  "alert_input": "诊断 data-sync-service 的 HighCPUUsage 告警，CPU 持续 5 分钟超过 80%，请分析根因并生成诊断报告。",
+  "knowledge": "根据历史经验，data-sync-service 出现 HighCPUUsage 告警时，常见根因是业务线程死循环或上游流量突增。",
+  "time_now": "2026-10-12 10:00:00",
+  "tools": {
+    "search_topic_by_service_name": {
+      "return": {
+        "total": 1,
+        "topics": [
+          {"topic_id": "topic-001", "topic_name": "data-sync-service", "service_name": "data-sync-service"}
+        ]
+      }
+    },
+    "search_log": {
+      "return": {
+        "total": 3,
+        "logs": [
+          {"timestamp": "2026-10-12 09:58:00", "level": "ERROR", "message": "StackOverflowError: repeated frame in worker-thread-1 at DataSyncTask.run()"}
+        ]
+      }
+    },
+    "query_cpu_metrics": {
+      "return": {
+        "service_name": "data-sync-service",
+        "statistics": {"avg": 92.3, "max": 97.1, "spike_detected": true},
+        "data_points": []
+      }
+    },
+    "query_memory_metrics": {
+      "return": {
+        "service_name": "data-sync-service",
+        "statistics": {"avg": 40.0, "max": 45.0, "memory_pressure": false},
+        "data_points": []
+      }
+    }
+  },
+  "expected": {
+    "root_cause_keywords": ["死循环", "无限循环", "CPU", "线程"],
+    "min_keyword_hits": 2
+  }
+}

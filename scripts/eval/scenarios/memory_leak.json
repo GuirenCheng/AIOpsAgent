@@ -1,0 +1,41 @@
+{
+  "name": "memory_leak",
+  "description": "内存持续上升至 85%，日志出现 OOM 与 GC 压力",
+  "alert_input": "诊断 order-service 的 MemoryUsageHigh 告警，内存使用率持续上升至 85%，请分析根因并生成诊断报告。",
+  "knowledge": "根据历史经验，order-service 内存持续上涨通常与缓存未设上限或对象未释放导致的内存泄漏有关。",
+  "time_now": "2026-10-12 10:00:00",
+  "tools": {
+    "search_topic_by_service_name": {
+      "return": {
+        "total": 1,
+        "topics": [
+          {"topic_id": "topic-002", "topic_name": "order-service", "service_name": "order-service"}
+        ]
+      }
+    },
+    "search_log": {
+      "return": {
+        "total": 3,
+        "logs": [
+          {"timestamp": "2026-10-12 09:55:00", "level": "WARN", "message": "OutOfMemoryError: GC overhead limit exceeded, heap 85%"}
+        ]
+      }
+    },
+    "query_cpu_metrics": {
+      "return": {
+        "service_name": "order-service",
+        "statistics": {"avg": 35.0, "max": 42.0, "spike_detected": false}
+      }
+    },
+    "query_memory_metrics": {
+      "return": {
+        "service_name": "order-service",
+        "statistics": {"avg": 82.0, "max": 85.0, "memory_pressure": true, "trend": "increasing"}
+      }
+    }
+  },
+  "expected": {
+    "root_cause_keywords": ["内存泄漏", "OOM", "内存", "GC"],
+    "min_keyword_hits": 2
+  }
+}
