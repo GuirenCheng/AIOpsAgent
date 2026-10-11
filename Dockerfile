@@ -2,11 +2,10 @@
 FROM python:3.11-slim
 
 # 关闭字节码缓存、开启无缓冲输出（日志实时可见，便于 docker logs 排障）
-# uv 环境变量：直接装到系统 Python、二进制不缓存、文件拷贝（不软链，便于精简层）
+# uv 环境变量：二进制不缓存、文件拷贝（不软链，便于精简层）
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    UV_SYSTEM_PYTHON=1 \
     UV_COMPILE_BYTECODE=0 \
     UV_LINK_MODE=copy
 
@@ -28,7 +27,11 @@ COPY aiops-docs ./aiops-docs
 
 # 可编辑安装项目本身：保留 __file__ 相对路径（main.py 依赖它定位 static/ 等资源）；
 # 依赖已在上一步按锁文件安装，故 --no-deps
-RUN uv pip install --no-deps -e .
+# 注意：uv sync 会把依赖装进 /app/.venv（而非系统 Python），故显式 --python 指向同一个 venv
+RUN uv pip install --no-deps -e . --python /app/.venv/bin/python
+
+# 让 uvicorn / python 解析到 .venv 里的可执行文件
+ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 9900
 

@@ -3,7 +3,11 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    UV_LINK_MODE=copy
+
+# 使用 uv（并行下载，比 pip 串行下载快一个数量级）
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 WORKDIR /app
 
@@ -11,7 +15,7 @@ COPY mcp_servers ./mcp_servers
 
 # 仅安装 MCP 服务所需依赖（与主应用解耦，镜像更小、启动更快）
 # 版本与 uv.lock 保持一致，避免漂移
-RUN pip install --no-cache-dir \
+RUN uv pip install --system --no-cache \
     "fastmcp==2.14.5" \
     "fastapi==0.128.8" \
     "uvicorn[standard]==0.40.0" \
