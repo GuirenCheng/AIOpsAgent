@@ -1,0 +1,52 @@
+[
+  {
+    "topic": "CPU",
+    "query": "CPU 使用率持续超过 80%，怎么排查？",
+    "relevant_file": "cpu_high_usage.md"
+  },
+  {
+    "topic": "CPU",
+    "query": "服务 CPU 飙高，日志里同一线程反复出现同一个堆栈，是什么原因？",
+    "relevant_file": "cpu_high_usage.md"
+  },
+  {
+    "topic": "磁盘",
+    "query": "磁盘空间快满了，报 No space left on device，怎么处理？",
+    "relevant_file": "disk_high_usage.md"
+  },
+  {
+    "topic": "磁盘",
+    "query": "服务器磁盘使用率 97%，如何定位是哪些文件占用了空间？",
+    "relevant_file": "disk_high_usage.md"
+  },
+  {
+    "topic": "内存",
+    "query": "内存使用率超过 85%，怀疑内存泄漏，怎么排查？",
+    "relevant_file": "memory_high_usage.md"
+  },
+  {
+    "topic": "内存",
+    "query": "应用频繁 OutOfMemoryError，内存持续上涨，如何分析？",
+    "relevant_file": "memory_high_usage.md"
+  },
+  {
+    "topic": "服务不可用",
+    "query": "服务不可用，健康检查失败，如何快速定位？",
+    "relevant_file": "service_unavailable.md"
+  },
+  {
+    "topic": "服务不可用",
+    "query": "接口错误率超过 50%，服务返回 503，怎么排查？",
+    "relevant_file": "service_unavailable.md"
+  },
+  {
+    "topic": "响应慢",
+    "query": "接口 P99 延迟超过 3 秒，怎么定位慢的原因？",
+    "relevant_file": "slow_response.md"
+  },
+  {
+    "topic": "响应慢",
+    "query": "数据库慢查询导致接口响应变慢，如何优化？",
+    "relevant_file": "slow_response.md"
+  }
+]
