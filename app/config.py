@@ -54,6 +54,9 @@ class Settings(BaseSettings):
 
     # DashScope 配置
     dashscope_api_key:str = os.getenv("DASHSCOPE_API_KEY")# 默认空字符串，实际使用需从环境变量中加载
+    # langchain_qwq 的 ChatQwen 默认 base_url 是国际站(dashscope-intl)，国内 key 会报 401；
+    # 这里固定国内站，避免依赖 DASHSCOPE_API_BASE 环境变量是否注入。
+    dashscope_api_base:str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     dashscope_model: str = 'qwen-max'
     dashscope_embedding_model:str = 'text-embedding-v4'# v4支持多种维度
 

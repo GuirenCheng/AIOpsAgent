@@ -101,6 +101,7 @@ class RagAgentService:
         self.model = ChatQwen(
             model=self.model_name,
             api_key = config.dashscope_api_key,
+            base_url = config.dashscope_api_base,
             temperature=config.rag_temperature,
             streaming = streaming
         )
@@ -112,6 +113,7 @@ class RagAgentService:
             self.fallback_model = ChatQwen(
                 model=config.rag_fallback_model,
                 api_key = config.dashscope_api_key,
+                base_url = config.dashscope_api_base,
                 temperature=config.rag_temperature,
                 streaming = streaming
             )
