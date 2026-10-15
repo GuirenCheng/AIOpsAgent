@@ -615,6 +615,32 @@ def restart_service(service_name: str, reason: str = "") -> Dict[str, Any]:
     }
 
 
+@mcp.tool()
+@log_tool_call
+def rollback_service(service_name: str, reason: str = "") -> Dict[str, Any]:
+    """回滚指定服务到上一稳定版本（Mock 演示：只模拟耗时并返回，不真正回滚）。
+
+    这是 harness 自动回滚 supervisor 的回滚动作样本：写操作（restart_service）失败后，
+    由后台 supervisor 按名调用本工具回滚。契约 risk=MEDIUM（低于默认 HIGH 审批阈值），
+    使自动回滚无需人工在环；回滚自身不再声明 rollback_tool，避免无限回滚。
+
+    Args:
+        service_name: 服务名称（必填），示例 "data-sync-service"
+        reason: 回滚原因（可选），便于审计留痕
+
+    Returns:
+        Dict: {"service_name", "status": "rolled_back", "reason", "rolled_back_at", "mock"}
+    """
+    time.sleep(1)  # 模拟回滚耗时
+    return {
+        "service_name": service_name,
+        "status": "rolled_back",
+        "reason": reason or "auto",
+        "rolled_back_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "mock": True,
+    }
+
+
 if __name__ == '__main__':
     import os
 

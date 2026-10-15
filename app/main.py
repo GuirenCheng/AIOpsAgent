@@ -19,6 +19,7 @@ from app.core.middleware import (
 from fastapi import FastAPI
 from loguru import logger
 from app.core.milvus_client import milvus_manager
+from app.harness.rollback import rollback_manager
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
@@ -41,11 +42,14 @@ async def lifespan(app:FastAPI):
     except Exception as e:
         logger.error(f"⚠️ Milvus 连接失败，服务将降级启动（依赖不可用）：{e}")
 
+    # 启动回滚 supervisor（后台任务消费写失败产生的回滚信号）
+    rollback_manager.start()
     logger.info('=' * 60)
 
     yield
 
     # 关闭时执行
+    await rollback_manager.stop()
     logger.info("🔌 正在关闭 Milvus 连接...")
     milvus_manager.close()
     logger.info(f"👋 {config.app_name} 关闭")

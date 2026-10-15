@@ -81,6 +81,18 @@ def _seed_registry(registry: ToolRegistry) -> ToolRegistry:
         rollback_tool="rollback_service",
         timeout_seconds=60.0,
     ))
+    # 回滚动作（mock）：risk=MEDIUM（低于默认 HIGH 审批阈值）→ 自动回滚无需人工在环；
+    # 幂等可重试、锁同一资源；rollback_tool=None 避免回滚失败再次触发回滚（无限回滚）。
+    registry.register(ToolSpec(
+        name="rollback_service",
+        read_only=False,
+        idempotent=True,
+        target_resource="service_name",
+        risk=RiskLevel.MEDIUM,
+        has_rollback=False,
+        rollback_tool=None,
+        timeout_seconds=60.0,
+    ))
     return registry
 
 
