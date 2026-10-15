@@ -21,6 +21,7 @@ class ToolSpec(BaseModel):
     - idempotent: 幂等才允许自动重试；非幂等写操作重试可能导致重复执行
     - target_resource: 未来 Milestone 1 资源锁的锁对象（写工具填服务名等）
     - risk: 操作风险等级
+    - priority: 调度优先级（越大越优先；Milestone 2 并发满时高优先级先入槽）
     - has_rollback: 是否有可执行的回滚手段
     - timeout_seconds: 该工具调用的超时上限（秒）
     """
@@ -29,5 +30,6 @@ class ToolSpec(BaseModel):
     idempotent: bool = True
     target_resource: str | None = None
     risk: RiskLevel = RiskLevel.LOW
+    priority: int = 0
     has_rollback: bool = False
     timeout_seconds: float = 30.0

@@ -69,13 +69,14 @@ def _seed_registry(registry: ToolRegistry) -> ToolRegistry:
     for name in ("query_cpu_metrics", "query_memory_metrics", "get_host_metrics"):
         registry.register(ToolSpec(name=name, read_only=True, idempotent=True, risk=RiskLevel.LOW))
 
-    # 写操作样例（mock）：重启服务——非只读、非幂等、高危、有回滚
+    # 写操作样例（mock）：重启服务——非只读、非幂等、高危、有回滚、高优先级（故障恢复优先入槽）
     registry.register(ToolSpec(
         name="restart_service",
         read_only=False,
         idempotent=False,
         target_resource="service_name",
         risk=RiskLevel.HIGH,
+        priority=10,
         has_rollback=True,
         timeout_seconds=60.0,
     ))

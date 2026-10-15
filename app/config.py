@@ -111,6 +111,13 @@ class Settings(BaseSettings):
     harness_lock_enabled:bool = True
     # 资源锁等待超时（秒）；0=冲突即拒绝（fail-fast，不排队）
     harness_lock_wait_seconds:float = 0.0
+    # Harness 工具契约层配置（Milestone 2：并发上限与优先级调度）
+    # 是否启用全局工具并发上限（保护 MCP server / 下游不被并发打爆）
+    harness_concurrency_enabled:bool = True
+    # 全局同时执行中的工具调用上限（>=1；0 为非法值）
+    harness_max_concurrent_tools:int = 10
+    # 并发满时等待槽位的超时（秒），超时返回「系统繁忙」拒绝该次调用
+    harness_tool_queue_wait_seconds:float = 5.0
 
     # 文档分块配置
     chunk_max_size:int = 800
