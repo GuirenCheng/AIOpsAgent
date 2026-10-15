@@ -28,8 +28,7 @@ from app.agent.guardrails import citation_check, no_context_guard, tool_failure_
 from app.agent.mcp_client import get_mcp_client_with_retry
 from app.config import config
 from app.core.checkpointer import create_checkpointer
-from app.tools.knowledge_tool import retrieve_knowledge
-from app.tools.time_tool import get_current_time
+from app.tools.tool_wrapper import guarded_get_current_time, guarded_retrieve_knowledge
 
 
 # 阿里千问大模型和langchain集成参考： https://docs.langchain.com/oss/python/integrations/chat/qwen
@@ -119,7 +118,7 @@ class RagAgentService:
             )
 
         # 定义基础工具
-        self.tools = [retrieve_knowledge,get_current_time]
+        self.tools = [guarded_retrieve_knowledge,guarded_get_current_time]
 
         # MCP 客户端(延迟初始化，使用全局管理)
         self.mcp_tools:list = []

@@ -11,7 +11,7 @@ def _request(name, args=None, server="test"):
 
 
 async def test_idempotent_tool_is_retried(mocker):
-    mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
+    mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     handler = AsyncMock(side_effect=[Exception("boom"), {"ok": True}])
 
     result = await retry_interceptor(_request("search_log"), handler, max_retries=2, delay=0)
@@ -21,7 +21,7 @@ async def test_idempotent_tool_is_retried(mocker):
 
 
 async def test_non_idempotent_tool_is_not_retried(mocker):
-    mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
+    mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     # restart_service 是 HIGH 风险写操作，会触发审批门；本测试聚焦幂等语义，关闭审批
     mocker.patch("app.agent.mcp_client.config.harness_approval_enabled", False)
     handler = AsyncMock(side_effect=Exception("boom"))
@@ -38,7 +38,7 @@ async def test_timeout_yields_error_and_audit_timeout(mocker):
 
     # 注册一个超时极短的临时工具，验证超时兜底；名字唯一、不会影响其它测试
     tool_registry.register(ToolSpec(name="_test_slow_tool", idempotent=False, timeout_seconds=0.05))
-    record = mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
+    record = mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
 
     async def slow(_request):
         await asyncio.sleep(0.3)

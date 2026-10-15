@@ -88,9 +88,9 @@ async def test_list_pending(mocker):
 # ---------------------------------------------------------------------------
 
 async def test_interceptor_approves_high_risk_tool(mocker):
-    mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
-    mocker.patch("app.agent.mcp_client.approval_manager.request", new=AsyncMock(return_value="appr-1"))
-    mocker.patch("app.agent.mcp_client.approval_manager.wait_for_decision", new=AsyncMock(return_value=ApprovalStatus.APPROVED))
+    mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
+    mocker.patch("app.harness.guard.approval_manager.request", new=AsyncMock(return_value="appr-1"))
+    mocker.patch("app.harness.guard.approval_manager.wait_for_decision", new=AsyncMock(return_value=ApprovalStatus.APPROVED))
 
     async def handler(request):
         return {"restarted": request.args["service_name"]}
@@ -100,9 +100,9 @@ async def test_interceptor_approves_high_risk_tool(mocker):
 
 
 async def test_interceptor_denies_high_risk_tool(mocker):
-    mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
-    mocker.patch("app.agent.mcp_client.approval_manager.request", new=AsyncMock(return_value="appr-1"))
-    mocker.patch("app.agent.mcp_client.approval_manager.wait_for_decision", new=AsyncMock(return_value=ApprovalStatus.DENIED))
+    mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
+    mocker.patch("app.harness.guard.approval_manager.request", new=AsyncMock(return_value="appr-1"))
+    mocker.patch("app.harness.guard.approval_manager.wait_for_decision", new=AsyncMock(return_value=ApprovalStatus.DENIED))
 
     handler = AsyncMock()
     r = await retry_interceptor(_request("restart_service", {"service_name": "svc"}), handler, max_retries=1, delay=0)
@@ -112,8 +112,8 @@ async def test_interceptor_denies_high_risk_tool(mocker):
 
 
 async def test_interceptor_skips_approval_for_low_risk(mocker):
-    mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
-    req_mock = mocker.patch("app.agent.mcp_client.approval_manager.request", new=AsyncMock())
+    mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
+    req_mock = mocker.patch("app.harness.guard.approval_manager.request", new=AsyncMock())
 
     async def handler(request):
         return {"logs": request.args["topic_id"]}
@@ -124,9 +124,9 @@ async def test_interceptor_skips_approval_for_low_risk(mocker):
 
 
 async def test_interceptor_skips_approval_when_disabled(mocker):
-    mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
+    mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     mocker.patch("app.agent.mcp_client.config.harness_approval_enabled", False)
-    req_mock = mocker.patch("app.agent.mcp_client.approval_manager.request", new=AsyncMock())
+    req_mock = mocker.patch("app.harness.guard.approval_manager.request", new=AsyncMock())
 
     async def handler(request):
         return {"restarted": request.args["service_name"]}
@@ -137,7 +137,7 @@ async def test_interceptor_skips_approval_when_disabled(mocker):
 
 
 async def test_interceptor_rollback_hint_on_failed_write(mocker):
-    audit_mock = mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
+    audit_mock = mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     mocker.patch("app.agent.mcp_client.config.harness_approval_enabled", False)
 
     async def failing_handler(request):

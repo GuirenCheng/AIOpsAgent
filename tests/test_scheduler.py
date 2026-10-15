@@ -118,9 +118,9 @@ async def test_gate_cancelled_waiter_is_removed():
 # ---------------------------------------------------------------------------
 
 async def test_interceptor_rejects_when_concurrency_full(mocker):
-    mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
+    mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     # 用容量 1 的新信号量替换全局 gate，便于制造「并发已满」
-    mocker.patch("app.agent.mcp_client.tool_gate", new=PrioritySemaphore(1))
+    mocker.patch("app.harness.guard.tool_gate", new=PrioritySemaphore(1))
     mocker.patch("app.agent.mcp_client.config.harness_concurrency_enabled", True)
     mocker.patch("app.agent.mcp_client.config.harness_tool_queue_wait_seconds", 0.05)
 
@@ -148,9 +148,9 @@ async def test_interceptor_rejects_when_concurrency_full(mocker):
 
 
 async def test_interceptor_skips_gate_when_concurrency_disabled(mocker):
-    mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
+    mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     gate = PrioritySemaphore(1)
-    mocker.patch("app.agent.mcp_client.tool_gate", new=gate)
+    mocker.patch("app.harness.guard.tool_gate", new=gate)
     mocker.patch("app.agent.mcp_client.config.harness_concurrency_enabled", False)
 
     await gate.acquire()  # 占用唯一槽位，但并发已禁用，interceptor 应忽略 gate

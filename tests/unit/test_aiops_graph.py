@@ -165,7 +165,7 @@ async def test_planner_returns_structured_plan(mocker):
         "app.agent.aiops.planner.get_mcp_client_with_retry",
         new=AsyncMock(return_value=_stub_mcp_client(mocker)),
     )
-    rk = mocker.patch("app.agent.aiops.planner.retrieve_knowledge")
+    rk = mocker.patch("app.agent.aiops.planner.guarded_retrieve_knowledge")
     rk.ainvoke = AsyncMock(return_value="经验文档内容")
 
     result = await planner_mod.planner(_state([]))
@@ -181,7 +181,7 @@ async def test_planner_fallback_plan_is_structured(mocker):
         "app.agent.aiops.planner.get_mcp_client_with_retry",
         new=AsyncMock(side_effect=Exception("mcp down")),
     )
-    rk = mocker.patch("app.agent.aiops.planner.retrieve_knowledge")
+    rk = mocker.patch("app.agent.aiops.planner.guarded_retrieve_knowledge")
     rk.ainvoke = AsyncMock(return_value="")
 
     result = await planner_mod.planner(_state([]))
@@ -390,7 +390,7 @@ async def test_graph_end_to_end_with_mocked_llm(mocker):
         "app.agent.aiops.planner.get_mcp_client_with_retry",
         new=AsyncMock(return_value=_stub_mcp_client(mocker)),
     )
-    rk = mocker.patch("app.agent.aiops.planner.retrieve_knowledge")
+    rk = mocker.patch("app.agent.aiops.planner.guarded_retrieve_knowledge")
     rk.ainvoke = AsyncMock(return_value="")
 
     # executor（query_cpu_metrics 不在 DIRECT_TOOLS，走 LLM 路径）

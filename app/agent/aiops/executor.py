@@ -13,14 +13,13 @@ from loguru import logger
 from app.agent.aiops.state import PlanExecuteState, PlanStep, Observation, coerce_step
 from app.agent.mcp_client import get_mcp_client_with_retry
 from app.config import config
-from app.tools.knowledge_tool import retrieve_knowledge
-from app.tools.time_tool import get_current_time
+from app.tools.tool_wrapper import guarded_get_current_time, guarded_retrieve_knowledge
 
 
 # 可确定性直接调用的本地工具（无需 LLM 选择参数）
 DIRECT_TOOLS = {
-    "get_current_time": get_current_time,
-    "retrieve_knowledge": retrieve_knowledge,
+    "get_current_time": guarded_get_current_time,
+    "retrieve_knowledge": guarded_retrieve_knowledge,
 }
 
 
@@ -91,8 +90,8 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
         # 路径2：LLM 自适应选择工具
         # 获取本地工具
         local_tools = [
-            get_current_time,
-            retrieve_knowledge,
+            guarded_get_current_time,
+            guarded_retrieve_knowledge,
         ]
 
         # 获取MCP工具
