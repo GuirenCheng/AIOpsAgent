@@ -2,7 +2,7 @@
 
 > 企业级智能对话和运维助手，支持 RAG 知识库问答和 AIOps 智能诊断
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com/)
 [![LangChain](https://img.shields.io/badge/LangChain-latest-orange.svg)](https://www.langchain.com/)
 
@@ -11,6 +11,8 @@
 - 🤖 **智能对话** - LangChain 多轮对话 + 流式输出
 - 📚 **RAG 问答** - 向量检索增强，支持文档上传、自动建立向量索引、自动更新知识库
 - 🔧 **AIOps 诊断** - Plan-Execute-Replan 自动故障诊断和根因分析
+- 🛡️ **工具执行护栏** - 审批门 / 并发槽位 / 资源锁 / 审计 / 自动回滚，安全跑多 agent 写操作
+- 🔒 **高危操作审批** - 高危写操作人工在环（approve/deny）
 - 🌐 **Web 界面** - 现代化 UI，支持多种对话模式：快速问答/流式对话
 - 🔌 **MCP 集成** - 日志查询和监控数据工具接入
 
@@ -20,11 +22,12 @@
 - **LLM**: 阿里云 DashScope (通义千问)
 - **向量库**: Milvus
 - **工具协议**: MCP (Model Context Protocol)
+- **分布式（可选）**: Redis 7（harness 多 worker 后端）
 
 ## 🚀 快速开始
 
 ### 环境要求
-- Python 3.10+
+- Python 3.11+
 - 阿里云 DashScope API Key ([获取地址](https://dashscope.aliyun.com/))
 
 ### 安装和启动
@@ -138,11 +141,17 @@ python -c "import requests, os, time; [requests.post('http://localhost:9900/api/
 
 | 功能 | 方法 | 路径 | 说明 |
 |------|------|------|------|
+| 健康检查 | GET | `/health` | 服务状态检查 |
 | 普通对话 | POST | `/api/chat` | 一次性返回 |
 | 流式对话 | POST | `/api/chat_stream` | SSE 流式输出 |
+| 清空会话 | POST | `/api/chat/clear` | 清空会话历史 |
+| 会话历史 | GET | `/api/chat/session/{id}` | 查询会话历史 |
 | AIOps 诊断 | POST | `/api/aiops` | 自动故障诊断（流式） |
 | 文件上传 | POST | `/api/upload` | 上传并索引文档 |
-| 健康检查 | GET | `/api/health` | 服务状态检查 |
+| 目录索引 | POST | `/api/index_directory` | 索引目录下文档 |
+| 待审批列表 | GET | `/api/harness/approvals` | 高危操作待审批单 |
+| 批准 | POST | `/api/harness/approvals/{id}/approve` | 批准高危操作 |
+| 拒绝 | POST | `/api/harness/approvals/{id}/deny` | 拒绝高危操作 |
 
 ### 使用示例
 
@@ -181,6 +190,7 @@ AIOpsAgent/
 │   │   ├── chat.py                         # 对话接口（RAG 聊天）
 │   │   ├── aiops.py                        # AIOps 接口（故障诊断）
 │   │   ├── file.py                         # 文件管理（文档上传）
+│   │   ├── approval.py                     # Harness 人工审批
 │   │   └── health.py                       # 健康检查（服务状态）
 │   ├── services/                           # 业务服务层
 │   │   ├── __init__.py
@@ -188,12 +198,12 @@ AIOpsAgent/
 │   │   ├── aiops_service.py                # AIOps 服务（计划-执行-重规划）
 │   │   ├── vector_store_manager.py         # 向量存储管理器
 │   │   ├── vector_embedding_service.py     # 向量embedding服务
-│   │   ├── vector_index_service.py         # 向量索引服务
-│   │   ├── vector_search_service.py        # 向量检索服务
+│   │   ├── vector_index_service.py         # 向量索引/检索服务
 │   │   └── document_splitter_service.py    # 文档分割服务
 │   ├── agent/                              # Agent 模块
 │   │   ├── __init__.py
 │   │   ├── mcp_client.py                   # MCP 客户端（工具调用）
+│   │   ├── guardrails.py                   # 兜底护栏（防编造）
 │   │   └── aiops/                          # AIOps 核心逻辑
 │   │       ├── __init__.py
 │   │       ├── planner.py                  # 计划制定器
@@ -201,6 +211,16 @@ AIOpsAgent/
 │   │       ├── replanner.py                # 重规划器
 │   │       ├── state.py                    # 状态定义
 │   │       └── utils.py                    # 工具函数
+│   ├── harness/                            # 工具执行护栏（安全跑写操作）
+│   │   ├── guard.py                        # execute_guarded 唯一收口点
+│   │   ├── registry.py                     # 工具契约单一真相源
+│   │   ├── audit.py                        # SQLite 工具调用审计
+│   │   ├── lock.py                         # 资源锁（进程内 / 切 Redis）
+│   │   ├── scheduler.py                    # 并发上限 + 优先级
+│   │   ├── approval.py                     # 高危操作人工审批
+│   │   ├── rollback.py                     # 自动回滚 supervisor
+│   │   ├── redis_backends.py               # Redis 锁/审批后端
+│   │   └── tool_spec.py                    # ToolSpec 契约模型
 │   ├── models/                             # 数据模型层
 │   │   ├── __init__.py
 │   │   ├── aiops.py                        # AIOps 模型
@@ -210,10 +230,12 @@ AIOpsAgent/
 │   ├── tools/                              # Agent 工具集
 │   │   ├── __init__.py
 │   │   ├── knowledge_tool.py               # 知识库查询工具
-│   │   └── time_tool.py                    # 时间工具
+│   │   ├── time_tool.py                    # 时间工具
+│   │   └── tool_wrapper.py                 # 本地工具护栏包装
 │   ├── core/                               # 核心组件
 │   │   ├── __init__.py
-│   │   ├── llm_factory.py                  # LLM 工厂（模型管理）
+│   │   ├── checkpointer.py                 # LangGraph 会话持久化工厂
+│   │   ├── middleware.py                   # 鉴权/限流/RequestID 中间件
 │   │   └── milvus_client.py                # Milvus 客户端
 │   └── utils/                              # 工具类
 │       ├── __init__.py
@@ -261,6 +283,15 @@ MILVUS_PORT=19530
 RAG_TOP_K=3
 CHUNK_MAX_SIZE=800
 CHUNK_OVERLAP=100
+
+# Harness 工具执行护栏配置
+HARNESS_BACKEND=in_process              # 锁/审批后端：in_process | redis
+REDIS_URL=redis://localhost:6379/0      # HARNESS_BACKEND=redis 时使用
+HARNESS_APPROVAL_ENABLED=true           # 高危操作人工审批开关
+HARNESS_APPROVAL_RISK_THRESHOLD=high    # 触发审批的风险等级（low/medium/high）
+HARNESS_APPROVAL_TIMEOUT_SECONDS=300    # 审批等待超时（fail-closed）
+HARNESS_MAX_CONCURRENT_TOOLS=10         # 全局并发工具上限
+HARNESS_LOCK_REDIS_TTL_SECONDS=30       # 分布式锁租约 TTL
 ```
 
 ## 🎯 AIOps 智能运维
@@ -295,6 +326,39 @@ curl -X POST "http://localhost:9900/api/aiops" \
 2. Executor 执行步骤 → 调用 MCP 工具（日志查询、监控数据）
 3. Replanner 评估结果 → 决定继续/调整/生成报告
 4. 输出诊断报告 → 根因分析 + 运维建议
+```
+
+## 🛡️ 工具执行护栏（Harness）
+
+`app/harness/` 是一套让多个并发运维 agent 安全执行写操作的护栏，六层由外到内：
+
+**审批门(M3) → 并发槽位(M2) → 资源锁(M1) → 执行(M0 幂等重试+超时+审计)**
+
+| 层 | 模块 | 作用 |
+|---|---|---|
+| M0 契约层 | `registry.py` / `audit.py` | 工具元数据单一真相源 + SQLite 审计 |
+| M1 资源锁 | `lock.py` | 同资源并发写互斥 |
+| M2 并发调度 | `scheduler.py` | 全局并发上限 + 优先级入槽 |
+| M3 人工审批 | `approval.py` | 高危写操作需人工 approve/deny |
+
+关键点：
+
+- **唯一收口点** `guard.py::execute_guarded`：MCP 工具、本地工具、回滚 supervisor 共用同一条护栏链。
+- **自动回滚**：写操作失败且声明回滚工具时，信号入队到 `rollback.py`，后台 supervisor 按名触发回滚。
+- **Redis 可切换**：锁/审批后端默认 `in_process`，多 worker 时设 `HARNESS_BACKEND=redis`。
+- **两类护栏**：`app/harness/` 管「工具能否安全执行」；`app/agent/guardrails.py` 管「模型是否编造」（检索短路/防编造/脱稿检测）。
+
+审批操作接口：
+
+```bash
+# 查看待审批高危操作
+curl -X GET "http://localhost:9900/api/harness/approvals" \
+  -H "X-API-Key: your-api-key"
+
+# 批准 / 拒绝某审批单
+curl -X POST "http://localhost:9900/api/harness/approvals/appr-1/approve" \
+  -H "Content-Type: application/json" -H "X-API-Key: your-api-key" \
+  -d '{"reason":"确认执行"}'
 ```
 
 ## 📝 开发指南
