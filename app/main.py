@@ -19,6 +19,8 @@ from app.core.middleware import (
 from fastapi import FastAPI
 from loguru import logger
 from app.core.milvus_client import milvus_manager
+from app.harness.approval import approval_manager
+from app.harness.lock import resource_locks
 from app.harness.rollback import rollback_manager
 
 @asynccontextmanager
@@ -50,6 +52,8 @@ async def lifespan(app:FastAPI):
 
     # 关闭时执行
     await rollback_manager.stop()
+    await resource_locks.aclose()
+    await approval_manager.aclose()
     logger.info("🔌 正在关闭 Milvus 连接...")
     milvus_manager.close()
     logger.info(f"👋 {config.app_name} 关闭")

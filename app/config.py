@@ -125,6 +125,14 @@ class Settings(BaseSettings):
     harness_approval_risk_threshold:str = 'high'
     # 等待人工审批的超时（秒），超时视为拒绝（fail-closed，默认 5 分钟）
     harness_approval_timeout_seconds:float = 300.0
+    # Harness 后端（多进程/分布式支持）：锁/审批内部实现可切换
+    # in_process = 进程内 asyncio 原语（默认，单 worker 部署零依赖）；
+    # redis = Redis 分布式锁/审批（多 worker 时锁与审批跨进程一致）
+    harness_backend:str = 'in_process'
+    # Redis 连接串（harness_backend=redis 时使用）
+    redis_url:str = 'redis://localhost:6379/0'
+    # 分布式锁租约 TTL（秒）：进程崩溃后自动释放，避免死锁
+    harness_lock_redis_ttl_seconds:float = 30.0
 
     # 文档分块配置
     chunk_max_size:int = 800

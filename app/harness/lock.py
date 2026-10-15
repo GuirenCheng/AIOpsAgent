@@ -10,6 +10,10 @@ asyncio.Lock 即可正确串行化对同一资源的并发写操作，无需引�
 """
 import asyncio
 
+from loguru import logger
+
+from app.config import config
+
 
 class ResourceLockManager:
     """按资源名维护独立的 asyncio.Lock（进程内，全局单例 resource_locks）。"""
@@ -42,6 +46,22 @@ class ResourceLockManager:
         if lock is not None and lock.locked():
             lock.release()
 
+    async def aclose(self) -> None:
+        """占位：进程内锁无外部连接，关闭为空操作（与 Redis 后端接口对齐）。"""
+        return None
+
+
+def _create_resource_locks():
+    """按 config.harness_backend 选择锁实现（进程内默认，redis 可选）。"""
+    if config.harness_backend == "redis":
+        try:
+            from app.harness.redis_backends import RedisResourceLockManager
+
+            return RedisResourceLockManager(config.redis_url)
+        except ImportError as e:
+            logger.warning(f"未安装 redis，回退进程内资源锁：{e}")
+    return ResourceLockManager()
+
 
 # 全局单例（与 tool_registry / audit_logger 同风格）
-resource_locks = ResourceLockManager()
+resource_locks = _create_resource_locks()

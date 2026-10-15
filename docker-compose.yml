@@ -23,6 +23,9 @@ services:
       # 生产加固：按需开启鉴权（默认关闭）
       API_AUTH_ENABLED: ${API_AUTH_ENABLED:-false}
       API_AUTH_KEY: ${API_AUTH_KEY:-}
+      # Harness 后端（多 worker 时切 redis；默认 in_process 不连 Redis）
+      HARNESS_BACKEND: ${HARNESS_BACKEND:-in_process}
+      REDIS_URL: redis://redis:6379/0
     volumes:
       - ./data:/app/data          # 会话持久化（SQLite checkpointer）
       - ./uploads:/app/uploads    # 上传文件
@@ -31,6 +34,7 @@ services:
     depends_on:
       - cls-server
       - monitor-server
+      - redis
     networks:
       - app-net
       - milvus
@@ -67,6 +71,19 @@ services:
       - ./mcp_servers/data:/app/mcp_servers/data
     expose:
       - "8004"
+    networks:
+      - app-net
+
+  # 可选：Harness 后端（仅当 HARNESS_BACKEND=redis 时被 app 使用）
+  redis:
+    image: redis:7-alpine
+    container_name: aiopsagent-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./data/redis:/data
+    expose:
+      - "6379"
     networks:
       - app-net
 

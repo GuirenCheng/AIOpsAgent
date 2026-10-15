@@ -13,6 +13,9 @@ import itertools
 from datetime import datetime, timezone
 from enum import Enum
 
+from loguru import logger
+
+from app.config import config
 from app.core.middleware import request_id_context
 from app.harness.audit import audit_logger
 from app.harness.tool_spec import RiskLevel
@@ -126,6 +129,22 @@ class ApprovalManager:
             if a.status == ApprovalStatus.PENDING
         ]
 
+    async def aclose(self) -> None:
+        """占位：进程内审批无外部连接，关闭为空操作（与 Redis 后端接口对齐）。"""
+        return None
+
+
+def _create_approval_manager():
+    """按 config.harness_backend 选择审批实现（进程内默认，redis 可选）。"""
+    if config.harness_backend == "redis":
+        try:
+            from app.harness.redis_backends import RedisApprovalManager
+
+            return RedisApprovalManager(config.redis_url)
+        except ImportError as e:
+            logger.warning(f"未安装 redis，回退进程内审批：{e}")
+    return ApprovalManager()
+
 
 # 全局单例（与 tool_registry / audit_logger / resource_locks / tool_gate 同风格）
-approval_manager = ApprovalManager()
+approval_manager = _create_approval_manager()
