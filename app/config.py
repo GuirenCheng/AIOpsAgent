@@ -118,6 +118,13 @@ class Settings(BaseSettings):
     harness_max_concurrent_tools:int = 10
     # 并发满时等待槽位的超时（秒），超时返回「系统繁忙」拒绝该次调用
     harness_tool_queue_wait_seconds:float = 5.0
+    # Harness 工具契约层配置（Milestone 3：高危操作人工审批）
+    # 是否启用人工审批（高危写操作执行前需人工批准）
+    harness_approval_enabled:bool = True
+    # 需要人工审批的风险等级阈值（low/medium/high，含本级及以上）
+    harness_approval_risk_threshold:str = 'high'
+    # 等待人工审批的超时（秒），超时视为拒绝（fail-closed，默认 5 分钟）
+    harness_approval_timeout_seconds:float = 300.0
 
     # 文档分块配置
     chunk_max_size:int = 800

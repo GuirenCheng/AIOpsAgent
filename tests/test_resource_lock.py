@@ -51,6 +51,8 @@ async def test_different_resources_are_independent():
 
 async def test_interceptor_conflicts_on_same_resource(mocker):
     mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
+    # restart_service 是 HIGH 风险写操作，会触发审批门；本测试聚焦资源锁，关闭审批
+    mocker.patch("app.agent.mcp_client.config.harness_approval_enabled", False)
     entered = asyncio.Event()
     release = asyncio.Event()
 

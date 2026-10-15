@@ -22,6 +22,8 @@ async def test_idempotent_tool_is_retried(mocker):
 
 async def test_non_idempotent_tool_is_not_retried(mocker):
     mocker.patch("app.agent.mcp_client.audit_logger.record", new=AsyncMock())
+    # restart_service 是 HIGH 风险写操作，会触发审批门；本测试聚焦幂等语义，关闭审批
+    mocker.patch("app.agent.mcp_client.config.harness_approval_enabled", False)
     handler = AsyncMock(side_effect=Exception("boom"))
 
     result = await retry_interceptor(_request("restart_service"), handler, max_retries=3, delay=0)

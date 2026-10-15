@@ -23,6 +23,7 @@ class ToolSpec(BaseModel):
     - risk: 操作风险等级
     - priority: 调度优先级（越大越优先；Milestone 2 并发满时高优先级先入槽）
     - has_rollback: 是否有可执行的回滚手段
+    - rollback_tool: 回滚动作名（Milestone 3，写操作失败后提示执行的回滚工具）
     - timeout_seconds: 该工具调用的超时上限（秒）
     """
     name: str
@@ -32,4 +33,5 @@ class ToolSpec(BaseModel):
     risk: RiskLevel = RiskLevel.LOW
     priority: int = 0
     has_rollback: bool = False
+    rollback_tool: str | None = None
     timeout_seconds: float = 30.0

@@ -14,6 +14,7 @@ from app.harness.audit import audit_logger
 from app.harness.registry import tool_registry
 from app.harness.lock import resource_locks
 from app.harness.scheduler import tool_gate
+from app.harness.approval import ApprovalStatus, approval_manager, requires_approval
 
 # 全局MCP客户端
 _mcp_client: Optional[MultiServerMCPClient] = None
@@ -97,6 +98,16 @@ async def _run_with_retry(
 
     # 所有尝试都失败，返回错误结果而不是抛出异常
     error_msg = f"工具{request.name} 在 {max_attempts}次尝试后仍然失败:{str(last_error)}"
+    # Milestone 3 回滚挂点：写操作失败且声明了回滚工具时，提示执行回滚并审计留痕
+    if spec.rollback_tool:
+        error_msg += f"；该操作支持回滚，请执行回滚工具 {spec.rollback_tool}"
+        await audit_logger.record(
+            tool=request.name,
+            server=request.server_name,
+            args=request.args,
+            status="rollback_required",
+            error=f"建议执行回滚：{spec.rollback_tool}",
+        )
     logger.error(error_msg)
     return CallToolResult(
         content = [TextContent(type = 'text',text = error_msg)],
@@ -112,7 +123,7 @@ async def retry_interceptor(
 ):
     """MCP 工具调用安全收口：这是所有 MCP 工具调用的唯一收口点
     （RAG 的 create_agent 与 AIOps 的 executor/planner/replanner 都经 get_mcp_client_with_retry），
-    在此统一施加五类护栏：
+    在此统一施加六类护栏：
 
     1. 幂等感知重试——只有 tool_registry 中 spec.idempotent=True 的工具才自动重试；
        写操作（如 restart_service）单次执行、失败即返回，避免「超时但已成功 + 重试」导致重复执行。
@@ -120,9 +131,13 @@ async def retry_interceptor(
     3. 审计——每次调用的工具/参数/状态/耗时/request_id 写入 audit_logger（SQLite）。
     4. 资源锁（Milestone 1）——spec.target_resource 非空时，整个操作持有该资源锁；
        并发写同一资源时后者被拒绝（fail-fast），避免并发写冲突。
-    5. 并发上限 + 优先级调度（Milestone 2）——最外层先申请全局并发槽位（tool_gate），
+    5. 并发上限 + 优先级调度（Milestone 2）——申请全局并发槽位（tool_gate），
        并发满时按 spec.priority 排队、高优先级先入槽；等待超时返回「系统繁忙」。
-       并发槽位保护 MCP server / 下游，资源锁保护单个资源，二者独立、由外到内嵌套。
+    6. 人工审批（Milestone 3）——spec.risk 达阈值（默认 HIGH）的写操作先创建审批单
+       并等待人工批准，批准才放行、拒绝/超时 fail-closed 不执行。
+
+    护栏由外到内嵌套：审批门（M3）→ 并发槽位（M2）→ 资源锁（M1）→ 执行（M0）。
+    审批门最外，等待人工决定期间不占并发槽位 / 资源锁，避免长时间阻塞其它调用。
 
     MCPToolCallRequest 结构：
     - name: str - 工具名称
@@ -142,7 +157,26 @@ async def retry_interceptor(
     # 非幂等工具：单次执行，失败直接返回（不重试，防重复执行写操作）
     max_attempts = max_retries if spec.idempotent else 1
 
-    # Milestone 2 并发槽位（最外层）：先申请全局并发槽位，满则按优先级排队等待。
+    # Milestone 3 审批门（最外层）：高危操作先经人工审批，批准才放行，拒绝/超时 fail-closed。
+    # 审批生命周期已由 approval_manager 审计，这里只做「未通过则拒绝执行」。
+    if config.harness_approval_enabled and requires_approval(spec.risk, config.harness_approval_risk_threshold):
+        approval_id = await approval_manager.request(
+            tool=request.name,
+            args=request.args,
+            server=request.server_name,
+        )
+        decision = await approval_manager.wait_for_decision(
+            approval_id,
+            timeout=config.harness_approval_timeout_seconds,
+        )
+        if decision != ApprovalStatus.APPROVED:
+            logger.warning(f"工具 {request.name} 人工审批未通过（{decision.value}），拒绝执行")
+            return CallToolResult(
+                content=[TextContent(type='text', text=f"工具 {request.name} 需人工审批，审批未通过（{decision.value}），已拒绝执行")],
+                isError=True,
+            )
+
+    # Milestone 2 并发槽位：先申请全局并发槽位，满则按优先级排队等待。
     gate_held = False
     if config.harness_concurrency_enabled:
         try:

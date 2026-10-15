@@ -78,6 +78,7 @@ def _seed_registry(registry: ToolRegistry) -> ToolRegistry:
         risk=RiskLevel.HIGH,
         priority=10,
         has_rollback=True,
+        rollback_tool="rollback_service",
         timeout_seconds=60.0,
     ))
     return registry
