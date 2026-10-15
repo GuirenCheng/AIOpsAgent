@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import random
+import time
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
@@ -587,6 +588,31 @@ def get_host_metrics() -> Dict[str, Any]:
         }
     except Exception as e:
         return {"error": f"采集主机指标失败：{e}", "available": False}
+
+
+@mcp.tool()
+@log_tool_call
+def restart_service(service_name: str, reason: str = "") -> Dict[str, Any]:
+    """重启指定服务（Mock 演示：只模拟耗时并返回，不真正重启进程）。
+
+    这是 harness 工具契约层的写操作样例：非只读、非幂等、高危、有回滚。
+    用于验证「非幂等工具不自动重试」等契约行为；接入真实部署前请替换为实际重启逻辑。
+
+    Args:
+        service_name: 服务名称（必填），示例 "data-sync-service"
+        reason: 重启原因（可选），便于审计留痕
+
+    Returns:
+        Dict: {"service_name", "status": "restarted", "reason", "restarted_at", "mock"}
+    """
+    time.sleep(1)  # 模拟重启耗时
+    return {
+        "service_name": service_name,
+        "status": "restarted",
+        "reason": reason or "manual",
+        "restarted_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "mock": True,
+    }
 
 
 if __name__ == '__main__':

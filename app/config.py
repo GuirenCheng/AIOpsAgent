@@ -100,6 +100,18 @@ class Settings(BaseSettings):
     session_store_enabled:bool = True
     session_store_db_path:str = 'data/checkpoints.sqlite'
 
+    # Harness 工具契约层配置（Milestone 0）
+    # 工具调用审计（SQLite 落盘，独立于 checkpoints.sqlite）
+    harness_audit_enabled:bool = True
+    harness_audit_db_path:str = 'data/audit.sqlite'
+    # MCP 工具默认超时（秒），ToolSpec.timeout_seconds 可覆盖
+    harness_tool_timeout_seconds:float = 30.0
+    # Harness 工具契约层配置（Milestone 1：资源锁）
+    # 是否启用资源锁（对 target_resource 非空的写操作按资源互斥）
+    harness_lock_enabled:bool = True
+    # 资源锁等待超时（秒）；0=冲突即拒绝（fail-fast，不排队）
+    harness_lock_wait_seconds:float = 0.0
+
     # 文档分块配置
     chunk_max_size:int = 800
     chunk_overlap: int = 100
