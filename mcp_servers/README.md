@@ -26,10 +26,10 @@
 ### 2. 指标（Monitor）
 
 1. 到 <https://github.com/numenta/NAB> 下载一个数据文件（如
-   `data/realAWSCloudwatch/ec2_cpu_utilization_5ea553.csv`，列：`timestamp,value`）。
+   `data/realAWSCloudwatch/ec2_cpu_utilization_24ae8d.csv`，列：`timestamp,value`）。
 2. 运行导入脚本：
    ```bash
-   python mcp_servers/import_metrics.py ec2_cpu_utilization_5ea553.csv --metric cpu
+   python mcp_servers/import_metrics.py ec2_cpu_utilization_24ae8d.csv --metric cpu
    # 内存指标同理：--metric memory
    ```
 3. 生成 `mcp_servers/data/monitor/cpu_metrics.csv` / `memory_metrics.csv`，重启即生效。

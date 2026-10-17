@@ -3,7 +3,7 @@
 支持 NAB（https://github.com/numenta/NAB，CSV 列：timestamp,value）或任意两列 CSV。
 
 用法示例：
-    python mcp_servers/import_metrics.py ec2_cpu_utilization_5ea553.csv --metric cpu
+    python mcp_servers/import_metrics.py ec2_cpu_utilization_24ae8d.csv --metric cpu
     python mcp_servers/import_metrics.py memory.csv --metric memory
 
 输出（默认写入 mcp_servers/data/monitor/）：
