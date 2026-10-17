@@ -59,6 +59,18 @@ async def test_lock_wait_timeout_acquires_after_release():
     await r.aclose()
 
 
+async def test_lock_cross_worker_mutual_exclusion():
+    """多 worker：A 持有锁时，B（另一 manager 实例 = 另一进程）无法获取同一资源。"""
+    r = fakeredis.FakeRedis(decode_responses=True)
+    worker_a = RedisResourceLockManager(client=r)
+    worker_b = RedisResourceLockManager(client=r)
+
+    assert await worker_a.acquire("svc") is True
+    assert await worker_b.acquire("svc") is False       # 跨 worker 互斥
+    assert await worker_b.acquire("svc-other") is True  # 不同资源互不影响
+    await r.aclose()
+
+
 # ---------------------------------------------------------------------------
 # 审批
 # ---------------------------------------------------------------------------
@@ -118,6 +130,32 @@ async def test_approval_missing_id_returns_expired(mocker):
     r = fakeredis.FakeRedis(decode_responses=True)
     mgr = RedisApprovalManager(client=r)
     assert await mgr.wait_for_decision("appr-999", timeout=0.1) == ApprovalStatus.EXPIRED
+    await r.aclose()
+
+
+async def test_approval_cross_worker_decide(mocker):
+    """多 worker：A 进程创建审批并阻塞等待，B 进程（另一 manager 实例）批准后 A 被唤醒。
+
+    这是 C1 的核心场景——单 worker 时 approve/deny 都在同一个 manager 内；
+    多 worker 时执行方与审批方是两个进程，靠 Redis 里的审批单状态沟通。
+    """
+    mocker.patch("app.harness.redis_backends.audit_logger.record", new=AsyncMock())
+    r = fakeredis.FakeRedis(decode_responses=True)
+    worker_a = RedisApprovalManager(client=r)
+    worker_b = RedisApprovalManager(client=r)
+
+    aid = await worker_a.request(
+        tool="restart_service", args={"service_name": "svc"}, server="monitor"
+    )
+
+    async def approve_later():
+        await asyncio.sleep(0.05)
+        return await worker_b.approve(aid, "值班批准")
+
+    approver = asyncio.create_task(approve_later())
+    decision = await worker_a.wait_for_decision(aid, timeout=2.0)
+    assert decision == ApprovalStatus.APPROVED
+    assert await approver is True
     await r.aclose()
 
 

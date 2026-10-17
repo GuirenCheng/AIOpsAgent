@@ -54,10 +54,12 @@
 
 ### C1｜多实例 + Redis（高可用）
 
-- [ ] 现状：锁/审批默认进程内（in_process），单机单进程 docker-compose。
-- [ ] 缺什么：多 worker 时锁/审批切 Redis（代码已备好、未验证）；补健康检查/重启策略（历史上踩过「重启后 Milvus 不拉起」的坑）。
-- [ ] 谁来做：你（配置 + 压测验证）。
-- [ ] 工作量：2 ~ 3 天。
+- [x] 现状：锁/审批默认进程内（in_process），单机单进程 docker-compose。
+- [x] 缺什么：多 worker 时锁/审批切 Redis（代码已备好、未验证）；补健康检查/重启策略（历史上踩过「重启后 Milvus 不拉起」的坑）。
+- [x] 谁来做：你（配置 + 压测验证）。
+- [x] 工作量：2 ~ 3 天。
+- [x] ✅ 已完成（2026-10-18）：补跨 worker 单测（锁互斥 / 审批跨进程决定）；`/health` 增加 Redis 依赖探测，新增 `/health/live` 存活探针；app/redis 加 Docker 健康检查，Milvus 全部服务补 `restart: unless-stopped`（修复宿主机重启后不自动拉起）。
+- [ ] ⚠️ 待办：真正的多 worker 部署（uvicorn `--workers N`）尚未开启——需先确认 lifespan 里的回滚 supervisor 不会每个 worker 各起一份；真实 Redis 下的跨进程并发压测未做。
 
 ### C2｜权限与多用户（RBAC）
 
