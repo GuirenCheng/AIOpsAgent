@@ -10,6 +10,7 @@ from app.harness.audit import AuditLogger, audit_logger
 from app.harness.lock import ResourceLockManager, resource_locks
 from app.harness.scheduler import PrioritySemaphore, tool_gate
 from app.harness.approval import ApprovalManager, ApprovalStatus, approval_manager, requires_approval
+from app.harness.notify import Notifier, notifier, notify_alert_diagnosis, notify_approval
 
 __all__ = [
     "ToolSpec",
@@ -26,4 +27,8 @@ __all__ = [
     "ApprovalStatus",
     "approval_manager",
     "requires_approval",
+    "Notifier",
+    "notifier",
+    "notify_approval",
+    "notify_alert_diagnosis",
 ]

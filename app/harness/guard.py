@@ -19,6 +19,7 @@ from app.config import config
 from app.harness.approval import ApprovalStatus, approval_manager, requires_approval
 from app.harness.audit import audit_logger
 from app.harness.lock import resource_locks
+from app.harness.notify import notify_approval
 from app.harness.registry import tool_registry
 from app.harness.rollback import rollback_manager
 from app.harness.scheduler import tool_gate
@@ -148,6 +149,7 @@ async def execute_guarded(
         spec.risk, config.harness_approval_risk_threshold
     ):
         approval_id = await approval_manager.request(tool=tool_name, args=args, server=server)
+        await notify_approval(approval_id, tool_name, args, server)
         decision = await approval_manager.wait_for_decision(
             approval_id, timeout=config.harness_approval_timeout_seconds
         )

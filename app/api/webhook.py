@@ -9,6 +9,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 
+from app.harness.notify import notify_alert_diagnosis
 from app.models.aiops import AlertWebhook, WebhookResponse
 from app.services.aiops_service import aiops_service
 
@@ -46,10 +47,7 @@ def _normalize_alert(body: dict) -> AlertWebhook:
 
 
 async def _run_diagnosis(alert: AlertWebhook, session_id: str) -> None:
-    '''后台消费诊断事件流，收集最终报告。
-
-    TODO(B2)：诊断完成后把 final_report 推送到钉钉/企微/邮件等审批通知通道。
-    '''
+    '''后台消费诊断事件流，收集最终报告并推送到已配置通知通道。'''
     final_report = ""
     try:
         async for event in aiops_service.diagnose_alert(session_id=session_id, alert=alert):
@@ -62,6 +60,7 @@ async def _run_diagnosis(alert: AlertWebhook, session_id: str) -> None:
             elif etype == "error":
                 logger.error(f"[webhook {alert.alertname}] 诊断出错：{event.get('message')}")
         logger.info(f"[webhook {alert.alertname}] 诊断完成，报告长度 {len(final_report)} 字符")
+        await notify_alert_diagnosis(alert.alertname, alert.severity, final_report)
     except Exception as e:
         logger.error(f"[webhook {alert.alertname}] 后台诊断异常：{e}", exc_info=True)
 

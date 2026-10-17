@@ -144,6 +144,25 @@ class Settings(BaseSettings):
     mcp_monitor_transport:str = 'streamable-http'
     mcp_monitor_url:str = 'http://localhost:8004/mcp'
 
+    # 通知通道配置（B2：审批通知 / 诊断结论推送）
+    # log = 仅日志（默认，零依赖）；dingtalk/wecom/email 需在 .env 配对应凭据
+    notify_channel:str = 'log'
+    # 通知里附带的审批入口基础地址（如 http://your-server:9900），留空则不生成链接
+    notify_base_url:str = ''
+    # 钉钉群机器人（加签可选）
+    dingtalk_webhook_url:str = ''
+    dingtalk_secret:str = ''
+    # 企业微信群机器人
+    wecom_webhook_url:str = ''
+    # SMTP 邮件
+    smtp_host:str = ''
+    smtp_port:int = 465
+    smtp_use_ssl:bool = True
+    smtp_username:str = ''
+    smtp_password:str = ''
+    smtp_from:str = ''
+    smtp_to:str = ''
+
 
     @property
     def mcp_servers(self) -> Dict[str, Dict[str,Any]]:
