@@ -54,3 +54,21 @@ class DiagnosisResponse(BaseModel):
                 }
             }
         }
+
+
+class AlertWebhook(BaseModel):
+    '''归一化后的告警信息（监控平台 webhook 触发诊断用）'''
+
+    alertname: str = Field(..., description='告警名称')
+    severity: str = Field(default='warning', description='告警级别')
+    instance: str = Field(default='', description='受影响实例/主机')
+    description: Optional[str] = Field(default=None, description='告警描述')
+    starts_at: Optional[str] = Field(default=None, description='首次触发时间')
+
+
+class WebhookResponse(BaseModel):
+    '''告警 webhook 的即时响应'''
+
+    code: int = 202
+    message: str = '告警已接收，诊断已在后台启动'
+    alertname: Optional[str] = None

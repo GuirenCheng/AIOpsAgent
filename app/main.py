@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
-from app.api import health, chat, file, aiops, approval
+from app.api import health, chat, file, aiops, approval, webhook
 from app.config import config
 from app.core.middleware import (
     ApiKeyAuthMiddleware,
@@ -95,6 +95,7 @@ app.include_router(chat.router,prefix='/api',tags=['对话'])
 app.include_router(file.router,prefix='/api',tags = ['文件管理'])
 app.include_router(aiops.router,prefix = '/api',tags = ['AIOps智能运维'])
 app.include_router(approval.router,prefix = '/api',tags = ['Harness 人工审批'])
+app.include_router(webhook.router,prefix = '/api',tags = ['告警 Webhook'])
 
 # 挂载静态文件
 base_dir = os.path.dirname(os.path.abspath(__file__))  # 获取 app 目录

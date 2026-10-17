@@ -10,11 +10,87 @@ from loguru import logger
 from app.agent.aiops import executor, planner, replanner
 from app.agent.aiops.state import PlanExecuteState, coerce_step, coerce_observation
 from app.core.checkpointer import create_checkpointer
+from app.models.aiops import AlertWebhook
 
 # 节点名称
 NODE_PLANNER = 'planner'
 NODE_EXECUTOR = 'executor'
 NODE_REPLANNER = 'replanner'
+
+# 诊断报告输出格式模板（「扫描全部告警」与「针对具体告警」两条路径共用）
+_REPORT_TEMPLATE = """诊断报告输出格式要求：
+```
+# 告警分析报告
+
+---
+
+## 📋 活跃告警清单
+
+| 告警名称 | 级别 | 目标服务 | 首次触发时间 | 最新触发时间 | 状态 |
+|---------|------|----------|-------------|-------------|------|
+| [告警1名称] | [级别] | [服务名] | [时间] | [时间] | 活跃 |
+| [告警2名称] | [级别] | [服务名] | [时间] | [时间] | 活跃 |
+
+---
+
+## 🔍 告警根因分析1 - [告警名称]
+
+### 告警详情
+- **告警级别**: [级别]
+- **受影响服务**: [服务名]
+- **持续时间**: [X分钟]
+
+### 症状描述
+[根据监控指标描述症状]
+
+### 日志证据
+[引用查询到的关键日志]
+
+### 根因结论
+[基于证据得出的根本原因]
+
+---
+
+## 🛠️ 处理方案执行1 - [告警名称]
+
+### 已执行的排查步骤
+1. [步骤1]
+2. [步骤2]
+
+### 处理建议
+[给出具体的处理建议]
+
+### 预期效果
+[说明预期的效果]
+
+---
+
+## 🔍 告警根因分析2 - [告警名称]
+[如果有第2个告警，重复上述格式]
+
+---
+
+## 📊 结论
+
+### 整体评估
+[总结所有告警的整体情况]
+
+### 关键发现
+- [发现1]
+- [发现2]
+
+### 后续建议
+1. [建议1]
+2. [建议2]
+
+### 风险评估
+[评估当前风险等级和影响范围]
+```
+
+**重要提醒**：
+- 最终输出必须是纯 Markdown 文本，不要包含 JSON 结构
+- 所有内容必须基于工具查询的真实数据，严禁编造
+- 如果某个步骤失败，在结论中如实说明，不要跳过"""
 
 
 class AIOpsService:
@@ -168,94 +244,58 @@ class AIOpsService:
         Yields:
             Dict[str, Any]: 诊断过程的流式事件
         """
-        # 使用固定的AIOps任务描述
-        from textwrap import dedent
-        aiops_task = dedent("""诊断当前系统是否存在告警，如果存在告警请详细分析告警原因并生成诊断报告，诊断报告输出格式要求：
-                ```
-                # 告警分析报告
+        # 无具体告警时扫描全部活跃告警
+        aiops_task = (
+            "诊断当前系统是否存在告警，如果存在告警请详细分析告警原因并生成诊断报告，"
+            + _REPORT_TEMPLATE
+        )
+        async for event in self._diagnose_with_task(aiops_task, session_id):
+            yield event
 
-                ---
+    async def diagnose_alert(
+            self,
+            session_id: str,
+            alert: AlertWebhook
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        AIOps 诊断接口（针对具体告警，供告警 webhook 触发）
 
-                ## 📋 活跃告警清单
+        Args:
+            session_id: 会话ID
+            alert: 归一化后的告警信息
 
-                | 告警名称 | 级别 | 目标服务 | 首次触发时间 | 最新触发时间 | 状态 |
-                |---------|------|----------|-------------|-------------|------|
-                | [告警1名称] | [级别] | [服务名] | [时间] | [时间] | 活跃 |
-                | [告警2名称] | [级别] | [服务名] | [时间] | [时间] | 活跃 |
+        Yields:
+            Dict[str, Any]: 诊断过程的流式事件
+        """
+        aiops_task = (
+            "系统收到一条告警，请针对该告警进行根因分析并生成诊断报告：\n"
+            f"- 告警名称：{alert.alertname}\n"
+            f"- 告警级别：{alert.severity}\n"
+            f"- 受影响实例：{alert.instance or '未知'}\n"
+            f"- 告警描述：{alert.description or '无'}\n"
+            f"- 首次触发时间：{alert.starts_at or '未知'}\n\n"
+            + _REPORT_TEMPLATE
+        )
+        async for event in self._diagnose_with_task(aiops_task, session_id):
+            yield event
 
-                ---
-
-                ## 🔍 告警根因分析1 - [告警名称]
-
-                ### 告警详情
-                - **告警级别**: [级别]
-                - **受影响服务**: [服务名]
-                - **持续时间**: [X分钟]
-
-                ### 症状描述
-                [根据监控指标描述症状]
-
-                ### 日志证据
-                [引用查询到的关键日志]
-
-                ### 根因结论
-                [基于证据得出的根本原因]
-
-                ---
-
-                ## 🛠️ 处理方案执行1 - [告警名称]
-
-                ### 已执行的排查步骤
-                1. [步骤1]
-                2. [步骤2]
-
-                ### 处理建议
-                [给出具体的处理建议]
-
-                ### 预期效果
-                [说明预期的效果]
-
-                ---
-
-                ## 🔍 告警根因分析2 - [告警名称]
-                [如果有第2个告警，重复上述格式]
-
-                ---
-
-                ## 📊 结论
-
-                ### 整体评估
-                [总结所有告警的整体情况]
-
-                ### 关键发现
-                - [发现1]
-                - [发现2]
-
-                ### 后续建议
-                1. [建议1]
-                2. [建议2]
-
-                ### 风险评估
-                [评估当前风险等级和影响范围]
-                ```
-
-                **重要提醒**：
-                - 最终输出必须是纯 Markdown 文本，不要包含 JSON 结构
-                - 所有内容必须基于工具查询的真实数据，严禁编造
-                - 如果某个步骤失败，在结论中如实说明，不要跳过""")
-
-
-        async for event in self.execute(aiops_task,session_id):
+    async def _diagnose_with_task(
+            self,
+            aiops_task: str,
+            session_id: str
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """执行一次诊断任务，并把 complete 事件包装成旧接口的 diagnosis 格式。"""
+        async for event in self.execute(aiops_task, session_id):
             # 转换事件格式以兼容旧的API
             if event.get("type") == "complete":
                 # 将response 包装为diagnosis 格式
                 yield {
-                    "type":"complete",
-                    "stage":"diagnosis_complete",
-                    "message":"诊断流程完成",
-                    "diagnosis":{
-                        "status":"completed",
-                        "report":event.get("response","")
+                    "type": "complete",
+                    "stage": "diagnosis_complete",
+                    "message": "诊断流程完成",
+                    "diagnosis": {
+                        "status": "completed",
+                        "report": event.get("response", "")
                     }
                 }
             else:
