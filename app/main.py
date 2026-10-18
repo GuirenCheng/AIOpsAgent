@@ -50,6 +50,16 @@ async def lifespan(app:FastAPI):
 
     # 首次启动创建初始管理员（RBAC；api_auth_enabled=True 且用户表为空时）
     await ensure_bootstrap_admin()
+
+    # 多 worker 安全告警（C1）：进程内锁/审批只在单进程内有效，多 worker 时会被打破。
+    # 提示切 harness_backend=redis，否则写操作互斥/审批跨 worker 失效。
+    if config.workers > 1 and config.harness_backend != 'redis':
+        logger.warning(
+            f"⚠️ 检测到 WORKERS={config.workers}（多进程）但 HARNESS_BACKEND={config.harness_backend}，"
+            f"进程内资源锁/审批会跨 worker 失效（并发写同一资源可能被打破互斥）。"
+            f"多 worker 部署请设置 HARNESS_BACKEND=redis 并确保 Redis 可用。"
+        )
+
     logger.info('=' * 60)
 
     yield

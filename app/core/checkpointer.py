@@ -6,6 +6,10 @@
   使用 SQLite 落盘（默认路径 data/checkpoints.sqlite）；
 - 未安装依赖、或显式禁用时，回退到内存 MemorySaver（不崩溃，但会话重启即丢）。
 
+多 worker（uvicorn --workers N）部署下，每个 worker 进程各自持有到同一个
+checkpoints.sqlite 的连接并并发写会话：这里把数据库设为 WAL + busy_timeout，
+避免并发写会话时抛 SQLITE_BUSY / 写冲突（与 audit.sqlite、users.sqlite 同策略）。
+
 注意：Agent 走异步接口（ainvoke/astream），必须用 AsyncSqliteSaver；
 同步的 SqliteSaver 不支持异步方法，会在运行时抛
 "The SqliteSaver does not support async methods"。
@@ -13,6 +17,28 @@
 import os
 
 from loguru import logger
+
+
+def _apply_multiprocess_pragmas(db_path: str) -> None:
+    """多 worker 下多个进程会并发写同一个 checkpoints.sqlite，做两步加固：
+
+    - journal_mode=WAL 是文件级持久属性（设置一次即对所有连接生效），让读写并发、
+      降低 writer 竞争；这里用一次性同步连接设置。
+    - busy_timeout 属连接级，在 aiosqlite.connect(..., timeout=5.0) 里指定（sqlite3 的
+      timeout 参数即 busy_timeout，并发写时等待重试而非立刻 SQLITE_BUSY）。
+
+    设置失败只告警、不阻断：连接仍可写，最坏退化为无 WAL 的单写者模式。
+    """
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(db_path, timeout=5.0)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"设置 checkpoints.sqlite 为 WAL 失败（忽略）：{e}")
 
 
 def create_checkpointer():
@@ -47,10 +73,13 @@ def create_checkpointer():
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
 
+    # 多进程写安全：WAL（文件级、持久）+ busy_timeout（连接级，timeout=5.0 → 5000ms）
+    _apply_multiprocess_pragmas(db_path)
+
     # aiosqlite.connect() 为同步函数，直接返回 Connection 代理（真正连接在首次读写时建立）。
     # AsyncSqliteSaver 的 setup() 会在首次读写（aput/aget 等）时自动执行，无需手动调用。
     # 不要用 from_conn_string()：它是 async 上下文管理器，退出即关闭连接，不能常驻。
-    conn = aiosqlite.connect(db_path)
+    conn = aiosqlite.connect(db_path, timeout=5.0)
     checkpointer = AsyncSqliteSaver(conn)
 
     logger.info(f"会话持久化已启用：AsyncSqliteSaver @ {db_path}")

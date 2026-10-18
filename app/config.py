@@ -106,6 +106,10 @@ class Settings(BaseSettings):
     # 需安装 langgraph-checkpoint-sqlite；未安装时自动回退到内存 MemorySaver
     session_store_enabled:bool = True
     session_store_db_path:str = 'data/checkpoints.sqlite'
+    # uvicorn --workers 数（与部署里 WORKERS 环境变量一致）：仅用于启动时的多 worker 安全告警。
+    # >1 且 harness_backend != redis 时，进程内锁/审批会跨 worker 失效（写操作互斥被打破），
+    # 启动时打醒目告警提示切 redis。
+    workers:int = 1
 
     # Harness 工具契约层配置（Milestone 0）
     # 工具调用审计（SQLite 落盘，独立于 checkpoints.sqlite）

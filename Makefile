@@ -23,7 +23,7 @@ NC = \033[0m
         security pre-commit-install pre-commit check-all coverage docs shell \
         ipython watch add add-dev remove list-docs test-upload sync logs \
         start-cls stop-cls start-monitor stop-monitor start-api stop-api status-mcp \
-        eval eval-check eval-baseline
+        eval eval-check eval-baseline stress-redis
 
 # ============================================================
 # 默认目标：显示帮助信息
@@ -592,6 +592,10 @@ eval-check:  ## 评测并对比基线，退化则非零退出
 eval-baseline:  ## 跑评测并保存为新基线
 	@echo "$(YELLOW)📌 生成评测基线...$(NC)"
 	python3 scripts/run_eval.py --save-baseline
+
+stress-redis:  ## Redis 跨进程压测（需真实 Redis，锁互斥 + 跨进程审批）
+	@echo "$(YELLOW)🧪 运行 Redis 跨进程压测（需真实 Redis 服务）...$(NC)"
+	python3 scripts/stress_redis_harness.py
 
 pre-commit-install:  ## 安装 pre-commit hooks
 	@echo "$(YELLOW)🔗 安装 pre-commit hooks...$(NC)"

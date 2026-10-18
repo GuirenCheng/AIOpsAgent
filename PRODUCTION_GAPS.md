@@ -62,7 +62,10 @@
 - [x] 工作量：2 ~ 3 天。
 - [x] ✅ 已完成（2026-10-18）：补跨 worker 单测（锁互斥 / 审批跨进程决定）；`/health` 增加 Redis 依赖探测，新增 `/health/live` 存活探针；app/redis 加 Docker 健康检查，Milvus 全部服务补 `restart: unless-stopped`（修复宿主机重启后不自动拉起）。
 - [x] ✅ 多 worker 启动安全收口（2026-10-18）：确认回滚 supervisor「每进程各起一份」是**正确**的（回滚信号由失败写操作的进程产生并由同进程消费，不跨进程、不重复/不丢，`rollback.py::start` 已注释）；修复 `ensure_bootstrap_admin` 的多进程竞态（两个 worker 同时建号撞 UNIQUE 会崩 lifespan，现捕获 ValueError 静默跳过）；审计库 `audit.sqlite` 与用户库 `users.sqlite` 连接加 `PRAGMA busy_timeout=5000` + `journal_mode=WAL`，多进程并发写不再 `SQLITE_BUSY`（审计落库不再静默丢）。配 3 个回归测试。
-- [ ] ⚠️ 待办：真正的 `uvicorn --workers N` 部署需先 `harness_backend=redis`（否则进程内锁/审批跨 worker 失效，写操作互斥会被打破）；真实 Redis 下的跨进程并发压测未做；LangGraph `checkpoints.sqlite` 的多进程写竞争（会话持久化）尚未评估。
+- [x] ✅ 多 worker 部署打通（2026-10-18）：Dockerfile CMD 支持 `WORKERS` 环境变量（`--workers ${WORKERS:-1}`）；docker-compose 传入 `WORKERS`；`app/config.py` 新增 `workers`，`app/main.py` lifespan 在 `workers>1 且 harness_backend!=redis` 时打醒目告警（多 worker 用进程内锁/审批会跨 worker 失效）。
+- [x] ✅ checkpoints.sqlite 多进程写安全（2026-10-18）：`app/core/checkpointer.py` 对会话库设 `journal_mode=WAL`（文件级持久）+ `busy_timeout=5s`（连接级，`aiosqlite.connect(timeout=5.0)`），与 audit.sqlite/users.sqlite 同策略；配 4 个单测。
+- [x] ✅ Redis 跨进程压测脚本（2026-10-18）：新增 `scripts/stress_redis_harness.py`（multiprocessing 起真实多进程，验证分布式锁互斥无丢失更新 + 审批跨进程生效）+ Makefile `stress-redis` 目标；需真实 Redis。
+- [ ] ⚠️ 待办：`make stress-redis` 需在真实 Redis（服务器 docker compose 里的 redis）上跑一次验证；单 worker 的 in_process 后端仍是默认（零依赖），切多 worker 需手动设 `HARNESS_BACKEND=redis` + `WORKERS>1`。
 
 ### C2｜权限与多用户（RBAC）
 

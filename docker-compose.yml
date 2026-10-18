@@ -26,6 +26,8 @@ services:
       # Harness 后端（多 worker 时切 redis；默认 in_process 不连 Redis）
       HARNESS_BACKEND: ${HARNESS_BACKEND:-in_process}
       REDIS_URL: redis://redis:6379/0
+      # uvicorn 进程数（多 worker 高可用）；>1 时须同时设 HARNESS_BACKEND=redis
+      WORKERS: ${WORKERS:-1}
     volumes:
       - ./data:/app/data          # 会话持久化（SQLite checkpointer）
       - ./uploads:/app/uploads    # 上传文件

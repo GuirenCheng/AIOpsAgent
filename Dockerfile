@@ -35,4 +35,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 9900
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9900"]
+# WORKERS 环境变量控制 uvicorn 进程数（默认 1）。
+# 注意：WORKERS>1 时必须在 .env 设 HARNESS_BACKEND=redis（锁/审批切分布式），
+# 否则进程内锁/审批跨 worker 失效（写操作互斥被打破，启动时 app 会打告警）。
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port 9900 --workers \"${WORKERS:-1}\""]
