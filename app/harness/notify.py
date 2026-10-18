@@ -20,6 +20,7 @@ from email.mime.text import MIMEText
 from loguru import logger
 
 from app.config import config
+from app.core.auth import create_approval_token
 
 
 def _truncate_bytes(s: str, limit: int) -> str:
@@ -209,8 +210,25 @@ async def notify(title: str, content: str) -> bool:
         return False
 
 
+def _approval_decision_url(approval_id: str) -> str:
+    """生成「一键审批」确认页链接；未配 NOTIFY_BASE_URL 或无签名密钥时返回空串（降级）。
+
+    链接里的 token 是带签名的短时效回调 token（见 app.core.auth.create_approval_token），
+    打开是确认页（GET 不动作），在页面上点「批准/拒绝」才真正 POST 执行，避免 IM/邮件
+    客户端预拉取链接时误触发高危操作。
+    """
+    base = config.notify_base_url.rstrip("/")
+    if not base:
+        return ""
+    try:
+        token = create_approval_token(approval_id)
+    except RuntimeError:
+        return ""  # 无 AUTH_TOKEN_SECRET，无法安全签发免登录链接，干脆不生成
+    return f"{base}/api/harness/approvals/{approval_id}/decision?token={token}"
+
+
 async def notify_approval(approval_id: str, tool: str, args, server: str) -> None:
-    """高危操作创建审批单后，推送「待审批」通知。"""
+    """高危操作创建审批单后，推送「待审批」通知（含一键审批链接）。"""
     args_str = json.dumps(args, ensure_ascii=False, default=str) if args else "-"
     lines = [
         f"审批单号：{approval_id}",
@@ -218,6 +236,11 @@ async def notify_approval(approval_id: str, tool: str, args, server: str) -> Non
         f"服务器：{server or '-'}",
         f"参数：{args_str}",
     ]
+    decision_url = _approval_decision_url(approval_id)
+    if decision_url:
+        minutes = max(1, config.approval_link_ttl_seconds // 60)
+        lines.append(f"一键审批：{decision_url}")
+        lines.append(f"（链接 {minutes} 分钟内有效，点开后在页面上确认批准/拒绝）")
     base = config.notify_base_url.rstrip("/")
     if base:
         lines.append(f"审批列表：{base}/api/harness/approvals")

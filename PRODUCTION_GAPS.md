@@ -47,7 +47,8 @@
 - [x] 谁来做：你写（或接企业机器人）。
 - [x] 工作量：1 ~ 2 天。
 - [x] ✅ 已完成（2026-10-18）：新增 `app/harness/notify.py`（log/钉钉/企微/邮件 可切换，默认 log）；审批创建（guard）与告警诊断完成（webhook）两处均推送；通知失败只告警、不打断主流程。
-- [ ] ⚠️ 待办：从通知里「一键 approve/deny」尚未做——需要带签名的短时效回调 URL + 公网可达，否则高危审批会被未授权点击。
+- [x] ✅ 已完成「一键审批」（2026-10-18）：审批通知附带「一键审批」链接 `{NOTIFY_BASE_URL}/api/harness/approvals/{id}/decision?token=…`，token 为 HMAC-SHA256 短时效回调 token（绑定审批单号 + 过期，`APPROVAL_LINK_TTL_SECONDS` 默认 1800s）；打开是确认页（GET 只渲染不动作，防 IM/邮件客户端预拉取链接误触发高危操作），页面上点「批准/拒绝」才 POST 执行；免登录（中间件对 decision 路径放行，安全靠签名 + 短时效）。无 `AUTH_TOKEN_SECRET` 或 `NOTIFY_BASE_URL` 时自动降级为只发审批列表，绝不生成无签名链接。
+- [ ] ⚠️ 待办：链接式审批的操作人无法精确到具体用户（审计统一记为 `approval-link`）；`NOTIFY_BASE_URL` 需配成公网可达地址（内网通知需另做内网穿透/内网入口），属部署项。
 
 ---
 

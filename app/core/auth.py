@@ -147,6 +147,54 @@ def principal_from_token(token: str) -> Principal | None:
 
 
 # ---------------------------------------------------------------------------
+# 一键审批回调 token（B2）：通知里的 approve/deny 链接，短时效 + 签名绑定审批单号
+# ---------------------------------------------------------------------------
+
+_APPROVAL_PURPOSE = "approval"
+
+
+def create_approval_token(approval_id: str, ttl_seconds: int | None = None) -> str:
+    """为某审批单签发「一键审批」回调 token。
+
+    与登录 token 区分：payload 带 `purpose="approval"` + `aid`，decode 时严格校验，
+    登录 token 无法被当成审批 token 复用。需 AUTH_TOKEN_SECRET（否则无法签名，
+    抛 RuntimeError 由调用方降级为「不生成链接」，绝不生成无签名的免登录链接）。
+    """
+    if not config.auth_token_secret:
+        raise RuntimeError("AUTH_TOKEN_SECRET 未配置，无法签发一键审批链接")
+    exp = int(time.time()) + (
+        ttl_seconds if ttl_seconds is not None else config.approval_link_ttl_seconds
+    )
+    payload = _b64e(json.dumps(
+        {"purpose": _APPROVAL_PURPOSE, "aid": approval_id, "exp": exp},
+        separators=(",", ":"),
+    ).encode("utf-8"))
+    return f"{payload}.{_sign(payload)}"
+
+
+def decode_approval_token(token: str) -> str | None:
+    """校验一键审批 token，返回其绑定的审批单号；无效/过期/用途不符返回 None。"""
+    if not config.auth_token_secret:
+        return None
+    try:
+        payload, sig = token.split(".", 1)
+    except ValueError:
+        return None
+    if not hmac.compare_digest(sig, _sign(payload)):
+        return None
+    try:
+        data = json.loads(_b64d(payload))
+    except (ValueError, TypeError):
+        return None
+    if data.get("purpose") != _APPROVAL_PURPOSE:
+        return None
+    if int(data.get("exp", 0)) < time.time():
+        return None
+    aid = data.get("aid", "")
+    return aid if aid else None
+
+
+# ---------------------------------------------------------------------------
 # 用户存储（SQLite，独立于审计库）
 # ---------------------------------------------------------------------------
 

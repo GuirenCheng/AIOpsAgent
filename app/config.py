@@ -132,6 +132,8 @@ class Settings(BaseSettings):
     harness_approval_risk_threshold:str = 'high'
     # 等待人工审批的超时（秒），超时视为拒绝（fail-closed，默认 5 分钟）
     harness_approval_timeout_seconds:float = 300.0
+    # 一键审批链接有效期（秒）：通知里的 approve/deny 回调 token 短时效，默认 30 分钟
+    approval_link_ttl_seconds:int = 1800
     # 写操作服务白名单（A2）：允许被自动重启/回滚的服务名（逗号分隔）。
     # 空 = 全部拒绝（fail-closed）；接入真实写操作前必须先在此列出允许触碰的服务。
     harness_write_allowlist:str = ''

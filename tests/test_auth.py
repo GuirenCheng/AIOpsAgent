@@ -7,7 +7,9 @@ from app.core.auth import (
     Principal,
     Role,
     UserStore,
+    create_approval_token,
     create_token,
+    decode_approval_token,
     decode_token,
     ensure_bootstrap_admin,
     hash_password,
@@ -77,6 +79,48 @@ def test_create_token_requires_secret(monkeypatch):
     monkeypatch.setattr(config, "auth_token_secret", "")
     with pytest.raises(RuntimeError):
         create_token("alice", "viewer")
+
+
+# ---------------------------------------------------------------------------
+# 一键审批回调 token（B2）
+# ---------------------------------------------------------------------------
+
+def test_approval_token_roundtrip(monkeypatch):
+    monkeypatch.setattr(config, "auth_token_secret", "test-secret")
+    token = create_approval_token("appr-7", ttl_seconds=600)
+    assert decode_approval_token(token) == "appr-7"
+
+
+def test_approval_token_expiry(monkeypatch):
+    monkeypatch.setattr(config, "auth_token_secret", "test-secret")
+    token = create_approval_token("appr-7", ttl_seconds=-1)
+    assert decode_approval_token(token) is None
+
+
+def test_approval_token_rejects_wrong_secret(monkeypatch):
+    monkeypatch.setattr(config, "auth_token_secret", "secret-a")
+    token = create_approval_token("appr-7")
+    monkeypatch.setattr(config, "auth_token_secret", "secret-b")
+    assert decode_approval_token(token) is None
+
+
+def test_approval_token_not_confusable_with_login_token(monkeypatch):
+    """登录 token 不能当审批 token 用（purpose 不同）；审批 token 也不能当登录身份用（无 sub/role）。"""
+    monkeypatch.setattr(config, "auth_token_secret", "test-secret")
+    login = create_token("alice", "admin", ttl_seconds=600)
+    assert decode_approval_token(login) is None
+    assert decode_token(login) is not None
+
+    approval = create_approval_token("appr-7", ttl_seconds=600)
+    assert principal_from_token(approval) is None  # 不能解析成登录身份
+    assert decode_approval_token(approval) == "appr-7"
+
+
+def test_approval_token_requires_secret(monkeypatch):
+    monkeypatch.setattr(config, "auth_token_secret", "")
+    with pytest.raises(RuntimeError):
+        create_approval_token("appr-7")
+    assert decode_approval_token("x.y") is None
 
 
 # ---------------------------------------------------------------------------

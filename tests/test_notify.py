@@ -1,9 +1,11 @@
 """通知通道（B2）单元测试"""
 from app.config import config
 from app.harness import notify as notify_mod
+from app.core.auth import decode_approval_token
 from app.harness.notify import (
     DingTalkNotifier,
     LogNotifier,
+    _approval_decision_url,
     _create_notifier,
     _truncate_bytes,
     notify_alert_diagnosis,
@@ -71,6 +73,37 @@ async def test_notify_approval_formats_and_sends(monkeypatch):
     assert "appr-1" in captured["content"]
     assert "restart_service" in captured["content"]
     assert "prod-01" in captured["content"]
+
+
+async def test_notify_approval_includes_decision_link(monkeypatch):
+    captured = {}
+
+    async def fake_notify(title, content):
+        captured["title"] = title
+        captured["content"] = content
+        return True
+
+    monkeypatch.setattr(notify_mod, "notify", fake_notify)
+    monkeypatch.setattr(config, "notify_base_url", "https://ops.example.com")
+    monkeypatch.setattr(config, "auth_token_secret", "test-secret")
+    await notify_approval("appr-1", "restart_service", {"service_name": "web"}, "prod-01")
+
+    content = captured["content"]
+    assert "一键审批" in content
+    # 链接里的 token 必须能解出对应的审批单号（签名 + 绑定）
+    url = next(line for line in content.splitlines() if line.startswith("一键审批："))
+    token = url.split("token=", 1)[1]
+    assert decode_approval_token(token) == "appr-1"
+    assert "审批列表" in content
+
+
+def test_approval_decision_url_omits_without_base_or_secret(monkeypatch):
+    monkeypatch.setattr(config, "notify_base_url", "")
+    assert _approval_decision_url("appr-1") == ""
+
+    monkeypatch.setattr(config, "notify_base_url", "https://ops.example.com")
+    monkeypatch.setattr(config, "auth_token_secret", "")
+    assert _approval_decision_url("appr-1") == ""
 
 
 async def test_notify_alert_diagnosis_sends(monkeypatch):

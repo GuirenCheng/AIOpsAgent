@@ -123,7 +123,8 @@ class AuthMiddleware:
     """认证中间件（纯 ASGI）：解析身份并写入 principal_context，不做角色判断。
 
     - 仅做认证（识别「是谁」），授权（「能做什么」）交给端点的 require_role 依赖。
-    - 作用于 /api/*；/api/auth/login 免鉴权（登录前还没有 token）；/health 等不拦截。
+    - 作用于 /api/*；/api/auth/login 免鉴权（登录前还没有 token）；一键审批回调
+      /api/harness/approvals/*/decision 也免鉴权（安全靠端点内的短时效签名 token）；/health 等不拦截。
     - 兼容两种凭证：`Authorization: Bearer <token>`（用户登录）与 `X-API-Key`
       （服务账号 / 向后兼容，映射为 admin）。
     """
@@ -137,7 +138,14 @@ class AuthMiddleware:
             return
 
         path = scope.get("path", "")
-        if not path.startswith("/api/") or path.rstrip("/") == "/api/auth/login":
+        if not path.startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
+        if path.rstrip("/") == "/api/auth/login":
+            await self.app(scope, receive, send)
+            return
+        # 一键审批回调（B2）：免登录，安全靠端点内的短时效签名 token 校验，中间件不拦截
+        if path.startswith("/api/harness/approvals/") and path.rstrip("/").endswith("/decision"):
             await self.app(scope, receive, send)
             return
 
