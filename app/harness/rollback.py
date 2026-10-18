@@ -31,6 +31,7 @@ class RollbackManager:
         rollback_tool: str,
         args: Dict[str, Any] | None,
         server: str,
+        actor: str = "",
     ) -> None:
         """入队一个回滚任务（供 guard._run_with_retry 在写失败时调用）。"""
         await self._queue.put({
@@ -38,6 +39,7 @@ class RollbackManager:
             "rollback_tool": rollback_tool,
             "args": args or {},
             "server": server,
+            "actor": actor,
         })
 
     async def _run(self) -> None:
@@ -64,6 +66,7 @@ class RollbackManager:
             await audit_logger.record(
                 tool=item["failed_tool"], server=item["server"], args=item["args"],
                 status="rollback_failed", error=f"获取回滚工具失败：{e}",
+                actor=item.get("actor", ""),
             )
             await notify_rollback_failure(
                 item["failed_tool"], item["rollback_tool"], f"获取回滚工具失败：{e}", item["server"]
@@ -75,6 +78,7 @@ class RollbackManager:
             await audit_logger.record(
                 tool=item["failed_tool"], server=item["server"], args=item["args"],
                 status="rollback_skipped", error=f"回滚工具 {rollback_tool} 未找到",
+                actor=item.get("actor", ""),
             )
             await notify_rollback_failure(
                 item["failed_tool"], item["rollback_tool"], f"回滚工具 {rollback_tool} 未找到", item["server"]
@@ -87,11 +91,13 @@ class RollbackManager:
             await audit_logger.record(
                 tool=rollback_tool, server=item["server"], args=item["args"],
                 status="rollback_executed", error=str(item["failed_tool"]),
+                actor=item.get("actor", ""),
             )
         except Exception as e:
             await audit_logger.record(
                 tool=rollback_tool, server=item["server"], args=item["args"],
                 status="rollback_failed", error=str(e),
+                actor=item.get("actor", ""),
             )
             await notify_rollback_failure(item["failed_tool"], rollback_tool, str(e), item["server"])
 

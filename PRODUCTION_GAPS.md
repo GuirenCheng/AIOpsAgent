@@ -63,10 +63,12 @@
 
 ### C2｜权限与多用户（RBAC）
 
-- [ ] 现状：单 API key，审批是单人 approve/deny，无角色。
-- [ ] 缺什么：用户/角色、「谁审批哪类操作」、审计与账号挂钩。
-- [ ] 谁来做：你。
-- [ ] 工作量：3 ~ 5 天。
+- [x] 现状：单 API key，审批是单人 approve/deny，无角色。
+- [x] 缺什么：用户/角色、「谁审批哪类操作」、审计与账号挂钩。
+- [x] 谁来做：你。
+- [x] 工作量：3 ~ 5 天。
+- [x] ✅ 已完成（2026-10-18）：新增 `app/core/auth.py`（用户名+密码 PBKDF2-SHA256 哈希 + 无状态 HMAC token；`principal_context` ContextVar + `get_actor()`；`UserStore` aiosqlite 落 `data/users.sqlite`；`ensure_bootstrap_admin` 首次启动建初始 admin；`require_role` 依赖）；认证中间件 `ApiKeyAuthMiddleware` → `AuthMiddleware`（纯 ASGI，解析 Bearer token / X-API-Key → Principal，只做认证不做授权）；新增 `app/api/auth.py`（登录/me/用户管理）与 `/login` 登录页；按角色给写操作端点加 `require_role`（chat/upload/index_directory/aiops 需 operator+，用户管理需 admin，webhook 由 X-API-Key→admin 满足）；审计/审批记录挂 `actor`/`requester`/`approver`（`audit.record` 默认从 `get_actor()` 取，旧调用零改动自动带账号）；前端 `app.js`/`audit.html` 优先发 Bearer、401 跳登录、审计表加「操作人」列；配 `tests/test_auth.py`。
+- [ ] ⚠️ 待办：token 无状态、无服务端 session（退出=前端删 token，吊销只能换 `AUTH_TOKEN_SECRET`）；暂不做「禁止自批」（requester==approver 不拦截）；用户管理仅 API 无 UI；`X-API-Key` 仍映射为 admin，公网部署建议尽快改用个人 token 并收窄 webhook 来源。
 
 ---
 

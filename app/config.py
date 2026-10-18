@@ -85,6 +85,13 @@ class Settings(BaseSettings):
     # 请求鉴权（默认关闭；生产环境建议开启并设置 API_AUTH_KEY）
     api_auth_enabled:bool = False
     api_auth_key:str = ''
+    # RBAC（C2）：用户名+密码登录 → 签发无状态 HMAC token
+    # auth_token_secret 为 token 签名密钥（api_auth_enabled=true 时必填，否则登录/校验都失败）
+    auth_token_secret:str = ''
+    auth_token_ttl_seconds:int = 86400  # token 有效期（秒），默认 24 小时
+    auth_admin_username:str = 'admin'   # 首次启动自动创建的初始管理员用户名
+    auth_admin_password:str = ''        # 初始管理员密码（空则随机生成并打印到日志一次）
+    auth_db_path:str = 'data/users.sqlite'  # 用户库（独立于审计库）
     # 单 IP 限流（内存滑动窗口，默认开启，限流阈值可调）
     rate_limit_enabled:bool = True
     rate_limit_per_minute:int = 120

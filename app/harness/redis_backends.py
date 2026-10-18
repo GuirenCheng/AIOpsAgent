@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from loguru import logger
 
 from app.config import config
+from app.core.auth import get_actor
 from app.core.middleware import request_id_context
 from app.harness.approval import ApprovalStatus
 from app.harness.audit import audit_logger
@@ -147,10 +148,11 @@ class RedisApprovalManager:
             return None
         return {_s(k): _s(v) for k, v in data.items()}
 
-    async def request(self, tool: str, args=None, server: str = "") -> str:
+    async def request(self, tool: str, args=None, server: str = "", requester: str = "") -> str:
         """创建审批单并返回审批单号；同时写一条 pending_approval 审计。"""
         n = await self._redis.incr(_APPROVAL_COUNTER)
         approval_id = f"appr-{n}"
+        requester = requester or get_actor()
         await self._redis.hset(
             self._key(approval_id),
             mapping={
@@ -158,6 +160,8 @@ class RedisApprovalManager:
                 "server": server,
                 "args": json.dumps(args or {}, ensure_ascii=False, default=str),
                 "request_id": request_id_context.get() or "",
+                "requester": requester,
+                "approver": "",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "status": ApprovalStatus.PENDING.value,
                 "reason": "",
@@ -165,17 +169,17 @@ class RedisApprovalManager:
         )
         await audit_logger.record(
             tool=tool, server=server, args=args,
-            status="pending_approval", error=approval_id,
+            status="pending_approval", error=approval_id, actor=requester,
         )
         return approval_id
 
-    async def _decide(self, approval_id: str, status: ApprovalStatus, reason: str = "") -> bool:
+    async def _decide(self, approval_id: str, status: ApprovalStatus, reason: str = "", approver: str = "") -> bool:
         data = await self._load(approval_id)
         if data is None or data.get("status") != ApprovalStatus.PENDING.value:
             return False
         await self._redis.hset(
             self._key(approval_id),
-            mapping={"status": status.value, "reason": reason},
+            mapping={"status": status.value, "reason": reason, "approver": approver},
         )
         await audit_logger.record(
             tool=data.get("tool", ""),
@@ -183,14 +187,15 @@ class RedisApprovalManager:
             args=_parse_args(data.get("args")),
             status=f"approval_{status.value}",
             error=reason or approval_id,
+            actor=approver,
         )
         return True
 
-    async def approve(self, approval_id: str, reason: str = "") -> bool:
-        return await self._decide(approval_id, ApprovalStatus.APPROVED, reason)
+    async def approve(self, approval_id: str, reason: str = "", approver: str = "") -> bool:
+        return await self._decide(approval_id, ApprovalStatus.APPROVED, reason, approver)
 
-    async def deny(self, approval_id: str, reason: str = "") -> bool:
-        return await self._decide(approval_id, ApprovalStatus.DENIED, reason)
+    async def deny(self, approval_id: str, reason: str = "", approver: str = "") -> bool:
+        return await self._decide(approval_id, ApprovalStatus.DENIED, reason, approver)
 
     async def wait_for_decision(self, approval_id: str, timeout: float = 300.0) -> ApprovalStatus:
         """等待审批决定；超时或单不存在均视为「过期/拒绝」（fail-closed）。"""
@@ -212,6 +217,7 @@ class RedisApprovalManager:
                     args=_parse_args(data.get("args")),
                     status="approval_expired",
                     error=approval_id,
+                    actor=data.get("requester", ""),
                 )
                 return ApprovalStatus.EXPIRED
             await asyncio.sleep(0.1)
@@ -228,6 +234,8 @@ class RedisApprovalManager:
                     "args": _parse_args(data.get("args")),
                     "server": data.get("server", ""),
                     "request_id": data.get("request_id", ""),
+                    "requester": data.get("requester", ""),
+                    "approver": data.get("approver", ""),
                     "created_at": data.get("created_at", ""),
                     "status": ApprovalStatus.PENDING.value,
                     "reason": data.get("reason", ""),

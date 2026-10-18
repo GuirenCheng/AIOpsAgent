@@ -207,6 +207,7 @@
                     <th>状态</th>
                     <th>工具</th>
                     <th>服务器</th>
+                    <th>操作人</th>
                     <th>request_id</th>
                     <th>耗时(ms)</th>
                     <th>参数</th>
@@ -220,6 +221,10 @@
 
     <script>
         const API_AUTH_KEY = window.API_AUTH_KEY || '';
+        const TOKEN_KEY = 'aiops_token';
+        function getToken() {
+            try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+        }
         const STATUS_BADGE = new Set([
             'success', 'error', 'timeout', 'rollback_required', 'rollback_executed',
             'rollback_failed', 'rollback_skipped', 'pending_approval', 'approval_approved',
@@ -228,8 +233,15 @@
 
         async function api(path) {
             const headers = {};
-            if (API_AUTH_KEY) headers['X-API-Key'] = API_AUTH_KEY;
+            const token = getToken();
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            else if (API_AUTH_KEY) headers['X-API-Key'] = API_AUTH_KEY;
             const resp = await fetch(path, { headers });
+            if (resp.status === 401) {
+                try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+                location.href = '/login';
+                return { code: 401, message: 'unauthorized', data: {} };
+            }
             return resp.json();
         }
 
@@ -298,6 +310,7 @@
                         '<td><span class="badge ' + badge(r.status) + '">' + esc(r.status) + '</span></td>' +
                         '<td>' + esc(r.tool) + '</td>' +
                         '<td>' + esc(r.server || '-') + '</td>' +
+                        '<td>' + esc(r.actor || '-') + '</td>' +
                         '<td>' + esc((r.request_id || '-').slice(0, 12)) + '</td>' +
                         '<td>' + esc(r.duration_ms) + '</td>' +
                         '<td class="args">' + esc(r.args) + '</td>' +

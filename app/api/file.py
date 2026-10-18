@@ -2,10 +2,11 @@
 from pathlib import Path
 
 from anyio import to_thread
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
 from loguru import logger
 from starlette.responses import JSONResponse
 
+from app.core.auth import Principal, Role, require_role
 from app.services.vector_index_service import vector_index_service
 
 router = APIRouter()
@@ -19,7 +20,7 @@ MAX_FILE_SIZE = 10*1024*1024
 
 
 @router.post('/upload')
-async def upload_file(file:UploadFile = File(...)):
+async def upload_file(file:UploadFile = File(...), _user: Principal = Depends(require_role(Role.OPERATOR, Role.ADMIN))):
     '''
     上传文件并自动创建向量索引
 
@@ -102,7 +103,7 @@ async def upload_file(file:UploadFile = File(...)):
 
 
 @router.post('/index_directory')
-async def index_directory(directory_path:str = None):
+async def index_directory(directory_path:str = None, _user: Principal = Depends(require_role(Role.OPERATOR, Role.ADMIN))):
     """
     索引指定目录下的所有文件
 

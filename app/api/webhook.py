@@ -6,9 +6,10 @@
 import asyncio
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 
+from app.core.auth import Principal, Role, require_role
 from app.harness.notify import notify_alert_diagnosis
 from app.models.aiops import AlertWebhook, WebhookResponse
 from app.services.aiops_service import aiops_service
@@ -66,7 +67,7 @@ async def _run_diagnosis(alert: AlertWebhook, session_id: str) -> None:
 
 
 @router.post("/webhook/alert", response_model=WebhookResponse, status_code=202)
-async def alert_webhook(request: Request):
+async def alert_webhook(request: Request, _user: Principal = Depends(require_role(Role.ADMIN))):
     '''接收告警回调：立即 202，后台异步诊断。'''
     try:
         body = await request.json()

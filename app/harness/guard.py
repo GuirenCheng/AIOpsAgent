@@ -16,6 +16,7 @@ from typing import Any, Awaitable, Callable
 from loguru import logger
 
 from app.config import config
+from app.core.auth import get_actor
 from app.harness.approval import ApprovalStatus, approval_manager, requires_approval
 from app.harness.audit import audit_logger
 from app.harness.lock import resource_locks
@@ -128,6 +129,7 @@ async def _run_with_retry(
                 rollback_tool=spec.rollback_tool,
                 args=args,
                 server=server,
+                actor=get_actor(),
             )
         except Exception as e:
             logger.warning(f"回滚入队失败（忽略）：{e}")
@@ -171,7 +173,7 @@ async def execute_guarded(
     if config.harness_approval_enabled and requires_approval(
         spec.risk, config.harness_approval_risk_threshold
     ):
-        approval_id = await approval_manager.request(tool=tool_name, args=args, server=server)
+        approval_id = await approval_manager.request(tool=tool_name, args=args, server=server, requester=get_actor())
         await notify_approval(approval_id, tool_name, args, server)
         decision = await approval_manager.wait_for_decision(
             approval_id, timeout=config.harness_approval_timeout_seconds

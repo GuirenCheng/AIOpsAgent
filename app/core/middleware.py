@@ -13,6 +13,7 @@ from loguru import logger
 from starlette.responses import JSONResponse
 
 from app.config import config
+from app.core.auth import Principal, Role, principal_context, principal_from_token
 
 # 请求 ID 上下文变量，供业务代码（如需）读取当前请求的追踪 ID
 request_id_context: ContextVar[str] = ContextVar("request_id", default="-")
@@ -118,8 +119,14 @@ class RateLimitMiddleware:
         await self.app(scope, receive, send)
 
 
-class ApiKeyAuthMiddleware:
-    """可选的 API Key 鉴权（作用于 /api/*，/health 等探活接口不拦截）。"""
+class AuthMiddleware:
+    """认证中间件（纯 ASGI）：解析身份并写入 principal_context，不做角色判断。
+
+    - 仅做认证（识别「是谁」），授权（「能做什么」）交给端点的 require_role 依赖。
+    - 作用于 /api/*；/api/auth/login 免鉴权（登录前还没有 token）；/health 等不拦截。
+    - 兼容两种凭证：`Authorization: Bearer <token>`（用户登录）与 `X-API-Key`
+      （服务账号 / 向后兼容，映射为 admin）。
+    """
 
     def __init__(self, app):
         self.app = app
@@ -129,20 +136,38 @@ class ApiKeyAuthMiddleware:
             await self.app(scope, receive, send)
             return
 
-        if not scope.get("path", "").startswith("/api/"):
+        path = scope.get("path", "")
+        if not path.startswith("/api/") or path.rstrip("/") == "/api/auth/login":
             await self.app(scope, receive, send)
             return
 
-        provided = _header(scope, "x-api-key") or ""
-        expected = config.api_auth_key or ""
-
-        # 使用恒定时间比较，降低时序侧信道风险
-        if not expected or not secrets.compare_digest(provided, expected):
+        principal = self._resolve(scope)
+        if principal is None:
             response = JSONResponse(
                 status_code=401,
-                content={"code": 401, "message": "未授权：缺少或错误的 API Key", "data": None},
+                content={"code": 401, "message": "未授权：缺少或无效的凭证", "data": None},
             )
             await response(scope, receive, send)
             return
 
-        await self.app(scope, receive, send)
+        token = principal_context.set(principal)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            principal_context.reset(token)
+
+    def _resolve(self, scope) -> Principal | None:
+        # 1) Bearer token（用户登录）
+        auth = _header(scope, "authorization") or ""
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+            if not token:
+                return None
+            return principal_from_token(token)
+
+        # 2) X-API-Key（服务账号，向后兼容；恒定时间比较防时序侧信道）
+        provided = _header(scope, "x-api-key") or ""
+        expected = config.api_auth_key or ""
+        if expected and provided and secrets.compare_digest(provided, expected):
+            return Principal(username="apikey", role=Role.ADMIN)
+        return None

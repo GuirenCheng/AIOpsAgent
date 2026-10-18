@@ -9,10 +9,11 @@ from contextlib import asynccontextmanager
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
-from app.api import health, chat, file, aiops, approval, webhook, audit
+from app.api import health, chat, file, aiops, approval, webhook, audit, auth
 from app.config import config
+from app.core.auth import ensure_bootstrap_admin
 from app.core.middleware import (
-    ApiKeyAuthMiddleware,
+    AuthMiddleware,
     RateLimitMiddleware,
     RequestIDMiddleware,
 )
@@ -46,6 +47,9 @@ async def lifespan(app:FastAPI):
 
     # 启动回滚 supervisor（后台任务消费写失败产生的回滚信号）
     rollback_manager.start()
+
+    # 首次启动创建初始管理员（RBAC；api_auth_enabled=True 且用户表为空时）
+    await ensure_bootstrap_admin()
     logger.info('=' * 60)
 
     yield
@@ -71,8 +75,8 @@ app = FastAPI(
 )
 
 # 生产加固中间件（add_middleware 会前插，故按「内→外」顺序添加）
-# 最终执行顺序（外→内）：RequestID → [CORS] → RateLimit → ApiKeyAuth → 路由
-app.add_middleware(ApiKeyAuthMiddleware)
+# 最终执行顺序（外→内）：RequestID → [CORS] → RateLimit → Auth → 路由
+app.add_middleware(AuthMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
 # CORS：仅在显式配置允许来源时启用；默认同源访问无需 CORS。
@@ -97,6 +101,7 @@ app.include_router(aiops.router,prefix = '/api',tags = ['AIOps智能运维'])
 app.include_router(approval.router,prefix = '/api',tags = ['Harness 人工审批'])
 app.include_router(webhook.router,prefix = '/api',tags = ['告警 Webhook'])
 app.include_router(audit.router,prefix = '/api',tags = ['审计与监控'])
+app.include_router(auth.router,prefix = '/api',tags = ['认证与用户'])
 
 # 挂载静态文件
 base_dir = os.path.dirname(os.path.abspath(__file__))  # 获取 app 目录
@@ -120,6 +125,16 @@ async def root():
         'version':config.app_version,
         'docs':'/docs'
     }
+
+@app.get('/login', include_in_schema=False)
+async def login_page():
+    '''登录页（RBAC）。无需注入 API key，登录接口本身免鉴权。'''
+    page_path = os.path.join(static_dir, 'login.html')
+    if not os.path.exists(page_path):
+        return HTMLResponse('<h1>登录页面缺失</h1>', status_code=404)
+    with open(page_path, 'r', encoding='utf-8') as f:
+        html = f.read()
+    return HTMLResponse(html)
 
 @app.get('/audit', include_in_schema=False)
 async def audit_page():

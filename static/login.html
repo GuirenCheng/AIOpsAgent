@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 · AIOps Agent</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='24' height='24' rx='6' fill='url(%23g)'/%3E%3Cpath d='M12 5l2.1 4.9L19 12l-4.9 2.1L12 19l-2.1-4.9L5 12l4.9-2.1z' fill='white'/%3E%3C/svg%3E">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #0f1115;
+            color: #e6e8ee;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            background: #171a21;
+            border: 1px solid #2a2f3a;
+            border-radius: 14px;
+            padding: 36px 32px;
+            width: 360px;
+            max-width: 92vw;
+        }
+        h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+        .sub { color: #9aa3b2; font-size: 13px; margin-bottom: 24px; }
+        label { display: block; font-size: 13px; color: #9aa3b2; margin-bottom: 6px; }
+        input {
+            width: 100%;
+            background: #0f1115;
+            color: #e6e8ee;
+            border: 1px solid #2a2f3a;
+            border-radius: 8px;
+            padding: 11px 12px;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+        input:focus { outline: 1px solid #6366f1; }
+        button {
+            width: 100%;
+            background: #6366f1;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+        button:hover { opacity: .9; }
+        button:disabled { opacity: .5; cursor: not-allowed; }
+        .err { color: #ef4444; font-size: 13px; margin-bottom: 12px; min-height: 18px; }
+        .back { display: inline-block; margin-top: 16px; font-size: 13px; color: #9aa3b2; text-decoration: none; }
+        .back:hover { color: #e6e8ee; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>登录 AIOps Agent</h1>
+        <div class="sub">使用用户名与密码登录</div>
+        <form id="loginForm">
+            <label for="username">用户名</label>
+            <input id="username" name="username" autocomplete="username" required>
+            <label for="password">密码</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required>
+            <div class="err" id="err"></div>
+            <button type="submit" id="submitBtn">登录</button>
+        </form>
+        <a class="back" href="/">← 返回对话</a>
+    </div>
+
+    <script>
+        const TOKEN_KEY = 'aiops_token';
+        // 已登录则直接回首页
+        try {
+            if (localStorage.getItem(TOKEN_KEY)) location.href = '/';
+        } catch (e) {}
+
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const err = document.getElementById('err');
+            const btn = document.getElementById('submitBtn');
+            err.textContent = '';
+            btn.disabled = true;
+
+            try {
+                const resp = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value.trim(),
+                        password: document.getElementById('password').value,
+                    }),
+                });
+                const body = await resp.json().catch(function () { return {}; });
+                if (resp.ok && body.data && body.data.token) {
+                    try {
+                        localStorage.setItem(TOKEN_KEY, body.data.token);
+                        localStorage.setItem('aiops_user', body.data.username || '');
+                        localStorage.setItem('aiops_role', body.data.role || '');
+                    } catch (err2) {}
+                    location.href = '/';
+                } else {
+                    err.textContent = (body && body.detail) || '用户名或密码错误';
+                }
+            } catch (err3) {
+                err.textContent = '登录请求失败：' + err3.message;
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

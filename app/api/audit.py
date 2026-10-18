@@ -32,6 +32,7 @@ async def list_audit(
     status: str | None = None,
     tool: str | None = None,
     server: str | None = None,
+    actor: str | None = None,
     since_minutes: int = 0,
 ):
     """查询审计记录（按时间倒序）。since_minutes>0 时只看最近 N 分钟。"""
@@ -44,6 +45,7 @@ async def list_audit(
         status=status or None,
         tool=tool or None,
         server=server or None,
+        actor=actor or None,
         since=since,
     )
     return {'code': 200, 'message': 'ok', 'data': {'items': items, 'count': len(items)}}

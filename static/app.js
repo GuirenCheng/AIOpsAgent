@@ -1,22 +1,41 @@
 // AIOpsAgent 前端应用
 //
-// 生产鉴权：所有同源 /api 请求自动附加 X-API-Key。
-// 密钥不写死在代码里 —— 由服务端在返回首页 index.html 时注入 window.API_AUTH_KEY
-// （值来自 .env 的 API_AUTH_KEY），避免把密钥提交进仓库。
-// 注意：该 key 对「能打开页面的用户」仍是可见的，用于挡住「能直连 API 端口、但未打开
-// 页面」的匿名/脚本请求；多人或公网部署请改用 Nginx 边缘鉴权（Basic Auth / SSO）。
+// 生产鉴权：所有同源 /api 请求优先附加 Bearer token（RBAC 登录后存于 localStorage），
+// 没有 token 时退回 X-API-Key（服务账号 / 向后兼容）。密钥不写死在代码里 —— 由服务端
+// 在返回页面时注入 window.API_AUTH_KEY（值来自 .env 的 API_AUTH_KEY），避免提交进仓库。
 const API_AUTH_KEY = window.API_AUTH_KEY || '';
+const TOKEN_KEY = 'aiops_token';
+function getToken() {
+    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+}
 const _nativeFetch = window.fetch.bind(window);
 window.fetch = function (url, options = {}) {
     const u = typeof url === 'string' ? url : (url && url.url) || '';
-    if (API_AUTH_KEY && u.indexOf('/api/') !== -1) {
+    const isLogin = u.indexOf('/api/auth/login') !== -1;
+    if (u.indexOf('/api/') !== -1 && !isLogin) {
         const headers = new Headers(options.headers || {});
-        if (!headers.has('X-API-Key')) {
+        const token = getToken();
+        if (token && !headers.has('Authorization')) {
+            headers.set('Authorization', 'Bearer ' + token);
+        } else if (API_AUTH_KEY && !headers.has('Authorization') && !headers.has('X-API-Key')) {
             headers.set('X-API-Key', API_AUTH_KEY);
         }
         options = Object.assign({}, options, { headers: headers });
     }
-    return _nativeFetch(url, options);
+    return _nativeFetch(url, options).then(function (resp) {
+        // 凭证失效：清掉本地 token 并跳登录页（登录接口本身 401 不跳，避免死循环）
+        if (resp.status === 401 && !isLogin) {
+            try {
+                localStorage.removeItem(TOKEN_KEY);
+                localStorage.removeItem('aiops_user');
+                localStorage.removeItem('aiops_role');
+            } catch (e) {}
+            if (location.pathname !== '/login') {
+                location.href = '/login';
+            }
+        }
+        return resp;
+    });
 };
 
 class AIOpsAgentApp {
@@ -1706,7 +1725,48 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// 顶部最小登录态：有 token 时显示「用户名(角色) + 退出」，无 token 不渲染。
+function initAuthUI() {
+    if (!getToken()) return;
+    const chip = document.createElement('div');
+    chip.id = 'authChip';
+    chip.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;' +
+        'display:flex;align-items:center;gap:10px;padding:6px 12px;border-radius:999px;' +
+        'background:#171a21;border:1px solid #2a2f3a;color:#e6e8ee;font-size:13px;';
+    document.body.appendChild(chip);
+
+    fetch('/api/auth/me').then(function (r) {
+        if (!r.ok) return;
+        return r.json();
+    }).then(function (body) {
+        const data = body && body.data;
+        if (!data) return;
+        try {
+            localStorage.setItem('aiops_user', data.username || '');
+            localStorage.setItem('aiops_role', data.role || '');
+        } catch (e) {}
+        const span = document.createElement('span');
+        span.textContent = (data.username || '-') + ' · ' + (data.role || '-');
+        const logout = document.createElement('a');
+        logout.textContent = '退出';
+        logout.href = '#';
+        logout.style.cssText = 'color:#9aa3b2;text-decoration:none;';
+        logout.addEventListener('click', function (e) {
+            e.preventDefault();
+            try {
+                localStorage.removeItem(TOKEN_KEY);
+                localStorage.removeItem('aiops_user');
+                localStorage.removeItem('aiops_role');
+            } catch (err) {}
+            location.href = '/login';
+        });
+        chip.appendChild(span);
+        chip.appendChild(logout);
+    }).catch(function () {});
+}
+
 // 初始化应用
 document.addEventListener('DOMContentLoaded', () => {
     new AIOpsAgentApp();
+    initAuthUI();
 });

@@ -4,17 +4,18 @@
 """
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sse_starlette.sse import EventSourceResponse
 from loguru import logger
 
+from app.core.auth import Principal, Role, require_role
 from app.models.request import ChatRequest, ClearRequest
 from app.models.response import ApiResponse, SessionInfoResponse
 from app.services.rag_agent_service import rag_agent_service
 
 router = APIRouter()
 @router.post('/chat')
-async def chat(request:ChatRequest):
+async def chat(request:ChatRequest, _user: Principal = Depends(require_role(Role.OPERATOR, Role.ADMIN))):
     """快速对话接口
     {
         "code": 200,
@@ -64,7 +65,7 @@ async def chat(request:ChatRequest):
         }
 
 @router.post("/chat_stream")
-async def chat_stream(request:ChatRequest):
+async def chat_stream(request:ChatRequest, _user: Principal = Depends(require_role(Role.OPERATOR, Role.ADMIN))):
     """流式对话接口（基于 RAG Agent，SSE）
 
     返回 SSE 格式，data 字段为 JSON：
@@ -167,7 +168,7 @@ async def chat_stream(request:ChatRequest):
 
 
 @router.post("/chat/clear",response_model = ApiResponse)
-async def clear_session(request:ClearRequest):
+async def clear_session(request:ClearRequest, _user: Principal = Depends(require_role(Role.OPERATOR, Role.ADMIN))):
     '''清空会话历史
 
     Args:

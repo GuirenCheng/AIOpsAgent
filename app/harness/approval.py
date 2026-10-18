@@ -16,6 +16,7 @@ from enum import Enum
 from loguru import logger
 
 from app.config import config
+from app.core.auth import get_actor
 from app.core.middleware import request_id_context
 from app.harness.audit import audit_logger
 from app.harness.notify import notify_approval_timeout
@@ -43,12 +44,14 @@ def requires_approval(risk: RiskLevel, threshold: str) -> bool:
 
 
 class _Approval:
-    def __init__(self, approval_id: str, tool: str, args, server: str, request_id: str):
+    def __init__(self, approval_id: str, tool: str, args, server: str, request_id: str, requester: str = ""):
         self.id = approval_id
         self.tool = tool
         self.args = args
         self.server = server
         self.request_id = request_id
+        self.requester = requester
+        self.approver = ""
         self.created_at = datetime.now(timezone.utc).isoformat()
         self.status = ApprovalStatus.PENDING
         self.reason = ""
@@ -62,38 +65,40 @@ class ApprovalManager:
         self._pending: dict[str, _Approval] = {}
         self._ids = itertools.count(1)
 
-    async def request(self, tool: str, args=None, server: str = "") -> str:
+    async def request(self, tool: str, args=None, server: str = "", requester: str = "") -> str:
         """创建审批单并返回审批单号；同时写一条 pending_approval 审计。"""
         approval_id = f"appr-{next(self._ids)}"
+        requester = requester or get_actor()
         self._pending[approval_id] = _Approval(
-            approval_id, tool, args, server, request_id_context.get()
+            approval_id, tool, args, server, request_id_context.get(), requester
         )
         await audit_logger.record(
             tool=tool, server=server, args=args,
-            status="pending_approval", error=approval_id,
+            status="pending_approval", error=approval_id, actor=requester,
         )
         return approval_id
 
-    async def _decide(self, approval_id: str, status: ApprovalStatus, reason: str = "") -> bool:
+    async def _decide(self, approval_id: str, status: ApprovalStatus, reason: str = "", approver: str = "") -> bool:
         appr = self._pending.get(approval_id)
         if appr is None or appr.status != ApprovalStatus.PENDING:
             return False
         appr.status = status
         appr.reason = reason
+        appr.approver = approver
         appr.event.set()
         await audit_logger.record(
             tool=appr.tool, server=appr.server, args=appr.args,
-            status=f"approval_{status.value}", error=reason or approval_id,
+            status=f"approval_{status.value}", error=reason or approval_id, actor=approver,
         )
         return True
 
-    async def approve(self, approval_id: str, reason: str = "") -> bool:
+    async def approve(self, approval_id: str, reason: str = "", approver: str = "") -> bool:
         """批准某审批单。返回是否成功（单不存在或已处理返回 False）。"""
-        return await self._decide(approval_id, ApprovalStatus.APPROVED, reason)
+        return await self._decide(approval_id, ApprovalStatus.APPROVED, reason, approver)
 
-    async def deny(self, approval_id: str, reason: str = "") -> bool:
+    async def deny(self, approval_id: str, reason: str = "", approver: str = "") -> bool:
         """拒绝某审批单。返回是否成功（单不存在或已处理返回 False）。"""
-        return await self._decide(approval_id, ApprovalStatus.DENIED, reason)
+        return await self._decide(approval_id, ApprovalStatus.DENIED, reason, approver)
 
     async def wait_for_decision(self, approval_id: str, timeout: float = 300.0) -> ApprovalStatus:
         """等待审批决定；超时或单不存在均视为「过期/拒绝」（fail-closed）。"""
@@ -109,7 +114,7 @@ class ApprovalManager:
             appr.status = ApprovalStatus.EXPIRED
             await audit_logger.record(
                 tool=appr.tool, server=appr.server, args=appr.args,
-                status="approval_expired", error=approval_id,
+                status="approval_expired", error=approval_id, actor=appr.requester,
             )
             await notify_approval_timeout(approval_id, appr.tool, appr.args, appr.server)
             return ApprovalStatus.EXPIRED
@@ -123,6 +128,8 @@ class ApprovalManager:
                 "args": a.args,
                 "server": a.server,
                 "request_id": a.request_id,
+                "requester": a.requester,
+                "approver": a.approver,
                 "created_at": a.created_at,
                 "status": a.status.value,
                 "reason": a.reason,

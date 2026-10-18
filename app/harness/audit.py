@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from loguru import logger
 
 from app.config import config
+from app.core.auth import get_actor
 from app.core.middleware import request_id_context
 
 _SCHEMA = """
@@ -24,7 +25,8 @@ CREATE TABLE IF NOT EXISTS tool_calls (
     args TEXT,
     status TEXT NOT NULL,
     duration_ms INTEGER,
-    error TEXT
+    error TEXT,
+    actor TEXT
 )
 """
 
@@ -50,6 +52,11 @@ class AuditLogger:
                 os.makedirs(db_dir, exist_ok=True)
             self._conn = await aiosqlite.connect(db_path)
             await self._conn.execute(_SCHEMA)
+            # 迁移：旧库补 actor 列（C2 之前审计无账号维度）
+            cur = await self._conn.execute("PRAGMA table_info(tool_calls)")
+            cols = [row[1] for row in await cur.fetchall()]
+            if "actor" not in cols:
+                await self._conn.execute("ALTER TABLE tool_calls ADD COLUMN actor TEXT")
             await self._conn.commit()
         return self._conn
 
@@ -62,16 +69,21 @@ class AuditLogger:
         status: str = "success",
         duration_ms: float = 0.0,
         error: str = "",
+        actor: str = "",
     ) -> None:
-        """写一条审计记录；审计被禁用或任何异常都直接忽略，不影响真实工具调用。"""
+        """写一条审计记录；审计被禁用或任何异常都直接忽略，不影响真实工具调用。
+
+        actor 缺省时从当前请求身份（principal_context）取操作人，无则 '-'。
+        """
         if not config.harness_audit_enabled:
             return
         try:
             conn = await self._get_conn()
             request_id = request_id_context.get()
+            actor = actor or get_actor()
             await conn.execute(
-                "INSERT INTO tool_calls (ts, request_id, server, tool, args, status, duration_ms, error) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO tool_calls (ts, request_id, server, tool, args, status, duration_ms, error, actor) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     _now_iso(),
                     request_id,
@@ -81,6 +93,7 @@ class AuditLogger:
                     status,
                     int(duration_ms),
                     error[:1000],
+                    actor[:64],
                 ),
             )
             await conn.commit()
@@ -91,12 +104,12 @@ class AuditLogger:
         """最近 N 条审计记录（按时间倒序），供排查 / 查询。"""
         conn = await self._get_conn()
         cur = await conn.execute(
-            "SELECT id, ts, request_id, server, tool, args, status, duration_ms, error "
+            "SELECT id, ts, request_id, server, tool, args, status, duration_ms, error, actor "
             "FROM tool_calls ORDER BY id DESC LIMIT ?",
             (limit,),
         )
         rows = await cur.fetchall()
-        cols = ["id", "ts", "request_id", "server", "tool", "args", "status", "duration_ms", "error"]
+        cols = ["id", "ts", "request_id", "server", "tool", "args", "status", "duration_ms", "error", "actor"]
         return [dict(zip(cols, row)) for row in rows]
 
     async def query(
@@ -105,6 +118,7 @@ class AuditLogger:
         status: str | None = None,
         tool: str | None = None,
         server: str | None = None,
+        actor: str | None = None,
         since: str | None = None,
         before: str | None = None,
     ) -> list[dict]:
@@ -115,7 +129,7 @@ class AuditLogger:
         """
         conn = await self._get_conn()
         sql = (
-            "SELECT id, ts, request_id, server, tool, args, status, duration_ms, error "
+            "SELECT id, ts, request_id, server, tool, args, status, duration_ms, error, actor "
             "FROM tool_calls"
         )
         where: list[str] = []
@@ -129,6 +143,9 @@ class AuditLogger:
         if server:
             where.append("server = ?")
             params.append(server)
+        if actor:
+            where.append("actor = ?")
+            params.append(actor)
         if since:
             where.append("ts >= ?")
             params.append(since)
@@ -142,7 +159,7 @@ class AuditLogger:
 
         cur = await conn.execute(sql, params)
         rows = await cur.fetchall()
-        cols = ["id", "ts", "request_id", "server", "tool", "args", "status", "duration_ms", "error"]
+        cols = ["id", "ts", "request_id", "server", "tool", "args", "status", "duration_ms", "error", "actor"]
         return [dict(zip(cols, row)) for row in rows]
 
     async def status_counts(self) -> dict[str, int]:
