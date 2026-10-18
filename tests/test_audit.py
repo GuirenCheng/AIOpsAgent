@@ -33,3 +33,45 @@ async def test_record_swallows_db_errors(tmp_path, monkeypatch):
     # 审计写失败不应抛出异常（不打断真实工具调用）
     await lg.record(tool="x", status="success")
     await lg.close()
+
+
+async def test_query_filters(tmp_path):
+    lg = AuditLogger(db_path=str(tmp_path / "audit.sqlite"))
+    try:
+        await lg.record(tool="search_log", server="cls", status="success")
+        await lg.record(tool="restart_service", server="monitor", status="error", error="boom")
+        await lg.record(tool="rollback_service", server="monitor", status="rollback_failed", error="x")
+
+        assert [r["tool"] for r in await lg.query(status="error")] == ["restart_service"]
+        assert [r["status"] for r in await lg.query(tool="rollback_service")] == ["rollback_failed"]
+        assert len(await lg.query(server="monitor")) == 2
+        # 倒序：最新在前
+        assert [r["tool"] for r in await lg.query(limit=10)] == [
+            "rollback_service", "restart_service", "search_log"
+        ]
+    finally:
+        await lg.close()
+
+
+async def test_query_since_before_filter(tmp_path):
+    lg = AuditLogger(db_path=str(tmp_path / "audit.sqlite"))
+    try:
+        await lg.record(tool="a", status="success")
+        future = "2999-01-01T00:00:00+00:00"
+        past = "2000-01-01T00:00:00+00:00"
+        assert await lg.query(since=future) == []
+        assert len(await lg.query(since=past)) == 1
+        assert await lg.query(before=past) == []
+    finally:
+        await lg.close()
+
+
+async def test_status_counts(tmp_path):
+    lg = AuditLogger(db_path=str(tmp_path / "audit.sqlite"))
+    try:
+        await lg.record(tool="a", status="success")
+        await lg.record(tool="b", status="success")
+        await lg.record(tool="c", status="error", error="x")
+        assert await lg.status_counts() == {"success": 2, "error": 1}
+    finally:
+        await lg.close()

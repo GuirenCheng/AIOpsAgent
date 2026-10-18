@@ -8,6 +8,8 @@ from app.harness.notify import (
     _truncate_bytes,
     notify_alert_diagnosis,
     notify_approval,
+    notify_approval_timeout,
+    notify_rollback_failure,
 )
 
 
@@ -86,3 +88,37 @@ async def test_notify_alert_diagnosis_sends(monkeypatch):
     assert "HighCPU" in captured["content"]
     assert "critical" in captured["content"]
     assert "# 报告" in captured["content"]
+
+
+async def test_notify_approval_timeout_formats(monkeypatch):
+    captured = {}
+
+    async def fake_notify(title, content):
+        captured["title"] = title
+        captured["content"] = content
+        return True
+
+    monkeypatch.setattr(notify_mod, "notify", fake_notify)
+    await notify_approval_timeout("appr-9", "restart_service", {"service_name": "web"}, "prod-01")
+
+    assert "超时" in captured["title"]
+    assert "appr-9" in captured["content"]
+    assert "restart_service" in captured["content"]
+    assert "prod-01" in captured["content"]
+
+
+async def test_notify_rollback_failure_formats(monkeypatch):
+    captured = {}
+
+    async def fake_notify(title, content):
+        captured["title"] = title
+        captured["content"] = content
+        return True
+
+    monkeypatch.setattr(notify_mod, "notify", fake_notify)
+    await notify_rollback_failure("restart_service", "rollback_service", "回滚失败原因", "prod-01")
+
+    assert "回滚失败" in captured["title"]
+    assert "restart_service" in captured["content"]
+    assert "rollback_service" in captured["content"]
+    assert "回滚失败原因" in captured["content"]

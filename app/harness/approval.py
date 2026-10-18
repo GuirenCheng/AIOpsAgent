@@ -18,6 +18,7 @@ from loguru import logger
 from app.config import config
 from app.core.middleware import request_id_context
 from app.harness.audit import audit_logger
+from app.harness.notify import notify_approval_timeout
 from app.harness.tool_spec import RiskLevel
 
 
@@ -110,6 +111,7 @@ class ApprovalManager:
                 tool=appr.tool, server=appr.server, args=appr.args,
                 status="approval_expired", error=approval_id,
             )
+            await notify_approval_timeout(approval_id, appr.tool, appr.args, appr.server)
             return ApprovalStatus.EXPIRED
 
     async def list_pending(self) -> list[dict]:

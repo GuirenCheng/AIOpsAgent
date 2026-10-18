@@ -99,6 +99,59 @@ class AuditLogger:
         cols = ["id", "ts", "request_id", "server", "tool", "args", "status", "duration_ms", "error"]
         return [dict(zip(cols, row)) for row in rows]
 
+    async def query(
+        self,
+        limit: int = 100,
+        status: str | None = None,
+        tool: str | None = None,
+        server: str | None = None,
+        since: str | None = None,
+        before: str | None = None,
+    ) -> list[dict]:
+        """按条件筛选审计记录（时间倒序）。
+
+        since/before 为 ISO 时间字符串（含时区，如 2026-10-18T08:00:00+00:00）；
+        因 ts 统一用 UTC ISO 存储，可直接按字典序比较。
+        """
+        conn = await self._get_conn()
+        sql = (
+            "SELECT id, ts, request_id, server, tool, args, status, duration_ms, error "
+            "FROM tool_calls"
+        )
+        where: list[str] = []
+        params: list = []
+        if status:
+            where.append("status = ?")
+            params.append(status)
+        if tool:
+            where.append("tool = ?")
+            params.append(tool)
+        if server:
+            where.append("server = ?")
+            params.append(server)
+        if since:
+            where.append("ts >= ?")
+            params.append(since)
+        if before:
+            where.append("ts <= ?")
+            params.append(before)
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+
+        cur = await conn.execute(sql, params)
+        rows = await cur.fetchall()
+        cols = ["id", "ts", "request_id", "server", "tool", "args", "status", "duration_ms", "error"]
+        return [dict(zip(cols, row)) for row in rows]
+
+    async def status_counts(self) -> dict[str, int]:
+        """按 status 分组计数（供监控大盘展示各类状态占比）。"""
+        conn = await self._get_conn()
+        cur = await conn.execute("SELECT status, COUNT(*) AS n FROM tool_calls GROUP BY status")
+        rows = await cur.fetchall()
+        return {status: n for status, n in rows}
+
     async def close(self) -> None:
         if self._conn is not None:
             await self._conn.close()

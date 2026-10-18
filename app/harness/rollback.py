@@ -14,6 +14,7 @@ from typing import Any, Dict
 from loguru import logger
 
 from app.harness.audit import audit_logger
+from app.harness.notify import notify_rollback_failure
 
 
 class RollbackManager:
@@ -64,6 +65,9 @@ class RollbackManager:
                 tool=item["failed_tool"], server=item["server"], args=item["args"],
                 status="rollback_failed", error=f"获取回滚工具失败：{e}",
             )
+            await notify_rollback_failure(
+                item["failed_tool"], item["rollback_tool"], f"获取回滚工具失败：{e}", item["server"]
+            )
             return
 
         tool = next((t for t in tools if t.name == rollback_tool), None)
@@ -71,6 +75,9 @@ class RollbackManager:
             await audit_logger.record(
                 tool=item["failed_tool"], server=item["server"], args=item["args"],
                 status="rollback_skipped", error=f"回滚工具 {rollback_tool} 未找到",
+            )
+            await notify_rollback_failure(
+                item["failed_tool"], item["rollback_tool"], f"回滚工具 {rollback_tool} 未找到", item["server"]
             )
             return
 
@@ -86,6 +93,7 @@ class RollbackManager:
                 tool=rollback_tool, server=item["server"], args=item["args"],
                 status="rollback_failed", error=str(e),
             )
+            await notify_rollback_failure(item["failed_tool"], rollback_tool, str(e), item["server"])
 
     def start(self) -> None:
         """启动 supervisor 后台任务（幂等）。"""

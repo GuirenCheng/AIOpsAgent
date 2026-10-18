@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
-from app.api import health, chat, file, aiops, approval, webhook
+from app.api import health, chat, file, aiops, approval, webhook, audit
 from app.config import config
 from app.core.middleware import (
     ApiKeyAuthMiddleware,
@@ -96,6 +96,7 @@ app.include_router(file.router,prefix='/api',tags = ['文件管理'])
 app.include_router(aiops.router,prefix = '/api',tags = ['AIOps智能运维'])
 app.include_router(approval.router,prefix = '/api',tags = ['Harness 人工审批'])
 app.include_router(webhook.router,prefix = '/api',tags = ['告警 Webhook'])
+app.include_router(audit.router,prefix = '/api',tags = ['审计与监控'])
 
 # 挂载静态文件
 base_dir = os.path.dirname(os.path.abspath(__file__))  # 获取 app 目录
@@ -119,6 +120,19 @@ async def root():
         'version':config.app_version,
         'docs':'/docs'
     }
+
+@app.get('/audit', include_in_schema=False)
+async def audit_page():
+    '''审计大盘页面，服务端注入 API 鉴权 key（密钥不落盘到仓库）'''
+    page_path = os.path.join(static_dir, 'audit.html')
+    if not os.path.exists(page_path):
+        return HTMLResponse('<h1>审计页面缺失</h1>', status_code=404)
+    with open(page_path, 'r', encoding='utf-8') as f:
+        html = f.read()
+    inject = '<script>window.API_AUTH_KEY = ' + json.dumps(config.api_auth_key) + ';</script>'
+    html = html.replace('</head>', inject + '</head>', 1)
+    return HTMLResponse(html)
+
 
 if __name__ == '__main__':
     import uvicorn

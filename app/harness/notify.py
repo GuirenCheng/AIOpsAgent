@@ -232,3 +232,22 @@ async def notify_alert_diagnosis(alertname: str, severity: str, report: str) -> 
         f"✅ 告警诊断完成：{alertname}",
         f"告警：{alertname}\n级别：{severity}\n\n{body}",
     )
+
+
+async def notify_approval_timeout(approval_id: str, tool: str, args, server: str) -> None:
+    """审批单超时（fail-closed 拒绝执行）后推送告警。"""
+    args_str = json.dumps(args, ensure_ascii=False, default=str) if args else "-"
+    await notify(
+        "⏰ 高危操作审批超时",
+        f"审批单号：{approval_id}\n工具：{tool}\n服务器：{server or '-'}\n参数：{args_str}\n"
+        "超时未审批，已按 fail-closed 拒绝执行。",
+    )
+
+
+async def notify_rollback_failure(failed_tool: str, rollback_tool: str, error: str, server: str) -> None:
+    """自动回滚失败后推送告警（回滚本身出错，需人工介入确认状态）。"""
+    await notify(
+        "🚨 自动回滚失败",
+        f"失败工具：{failed_tool}\n回滚工具：{rollback_tool}\n服务器：{server or '-'}\n"
+        f"原因：{error}\n请人工介入确认状态。",
+    )
