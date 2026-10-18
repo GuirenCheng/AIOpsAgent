@@ -27,7 +27,6 @@ RAG 检索质量量化评估脚本（golden 集 + recall@k / precision@k / hit@k
 里有 DASHSCOPE_API_KEY（embedding 需要真实调用）。非 pytest，不进 CI。
 """
 import argparse
-import json
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -35,21 +34,43 @@ from pathlib import Path
 # 让 `python scripts/eval_retrieval.py` 也能从项目根导入 app
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.config import config  # noqa: E402
 from app.core.milvus_client import milvus_manager  # noqa: E402
+from app.eval_metrics import hit_k, load_retrieval_golden, precision_k  # noqa: E402
 from app.services.vector_store_manager import vector_store_manager  # noqa: E402
 from app.tools.knowledge_tool import l2_distance_to_relevance  # noqa: E402
 
 
-def load_golden(path: str) -> list:
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data, list):
-        raise ValueError(f"golden 集应为 JSON 数组：{path}")
-    for item in data:
-        for key in ("query", "relevant_file"):
-            if key not in item:
-                raise ValueError(f"golden 条目缺少字段 {key!r}：{item}")
-    return data
+def run_retrieval(golden_path: str, max_k: int = 10, top_k: int | None = None, threshold: float | None = None) -> dict:
+    """跑 golden 集，返回线上口径指标（top_k/threshold 过滤后的 hit@3 / precision@3）。
+
+    供 run_eval.py 统一入口复用；top_k/threshold 默认取线上 config（rag_top_k /
+    rag_relevance_threshold），保证评测口径与线上一致。
+    """
+    if top_k is None:
+        top_k = config.rag_top_k
+    if threshold is None:
+        threshold = config.rag_relevance_threshold
+
+    golden = load_retrieval_golden(golden_path)
+    milvus_manager.connect()
+
+    ranked_all = [retrieve(item["query"], k=max_k) for item in golden]
+    n = len(golden)
+    hits = 0
+    precs = 0.0
+    for r, g in zip(ranked_all, golden):
+        filtered = [(fn, s) for fn, s in r if s >= threshold][:top_k]
+        hits += int(hit_k(filtered, g["relevant_file"], top_k))
+        precs += precision_k(filtered, g["relevant_file"], top_k)
+
+    return {
+        "n": n,
+        "top_k": top_k,
+        "threshold": threshold,
+        "hit_at_3": hits / n if n else 0.0,
+        "precision_at_3": precs / n if n else 0.0,
+    }
 
 
 def retrieve(query: str, k: int) -> list:
@@ -62,26 +83,13 @@ def retrieve(query: str, k: int) -> list:
     return out
 
 
-def hit_k(ranked: list, relevant_file: str, k: int) -> bool:
-    """前 k 个结果里是否出现正确文件。"""
-    return any(fn == relevant_file for fn, _ in ranked[:k])
-
-
-def precision_k(ranked: list, relevant_file: str, k: int) -> float:
-    """前 k 个结果里来自正确文件的 chunk 占比。"""
-    top = ranked[:k]
-    if not top:
-        return 0.0
-    return sum(1 for fn, _ in top if fn == relevant_file) / len(top)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="RAG 检索质量量化评估")
     parser.add_argument("--golden", default=str(Path(__file__).resolve().parent / "eval" / "retrieval_golden.json"))
     parser.add_argument("--max-k", type=int, default=10, help="检索时向 Milvus 请求的最大 k")
     args = parser.parse_args()
 
-    golden = load_golden(args.golden)
+    golden = load_retrieval_golden(args.golden)
     max_k = args.max_k
 
     # 连接 Milvus（复用生产唯一连接；索引数据已在 aiops-docs 导入）

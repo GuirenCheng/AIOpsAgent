@@ -14,7 +14,6 @@ Plan-Execute-Replan 诊断准确率评估脚本（真实 LLM）。
 """
 import argparse
 import asyncio
-import json
 import os
 import sys
 import uuid
@@ -29,6 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["SESSION_STORE_ENABLED"] = "false"
 
 from langchain_core.tools import tool  # noqa: E402
+
+from app.eval_metrics import load_diagnosis_scenarios, score_response  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -164,23 +165,27 @@ def _patchers():
 # 场景加载 / 打分 / 运行
 # ---------------------------------------------------------------------------
 
-def _load_scenarios(path):
-    p = Path(path)
-    if p.is_file():
-        return [json.loads(p.read_text(encoding="utf-8"))]
-    files = sorted(p.glob("*.json"))
-    scenarios = []
-    for f in files:
-        scenarios.append(json.loads(f.read_text(encoding="utf-8")))
-    return scenarios
+async def run_diagnosis(scenarios_path, limit=0) -> dict:
+    """跑诊断场景，返回 {n, passed, accuracy, scenarios:[{name, ok, matched, preview}]}。
 
+    供 run_eval.py 统一入口复用；用脚本化 MCP 工具 + 真实 LLM 打分。
+    """
+    scenarios = load_diagnosis_scenarios(scenarios_path)
+    if limit:
+        scenarios = scenarios[:limit]
 
-def _score(response, expected):
-    keywords = expected.get("root_cause_keywords", [])
-    min_hits = expected.get("min_keyword_hits", 1)
-    low = (response or "").lower()
-    matched = [k for k in keywords if k.lower() in low]
-    return len(matched) >= min_hits, matched
+    details = []
+    for sc in scenarios:
+        response = await _run_scenario(sc)
+        ok, matched = score_response(response, sc.get("expected", {}))
+        preview = (response or "").replace("\n", " ")[:120]
+        details.append(
+            {"name": sc.get("name", "unnamed"), "ok": ok, "matched": matched, "preview": preview}
+        )
+
+    n = len(scenarios)
+    passed = sum(1 for d in details if d["ok"])
+    return {"n": n, "passed": passed, "accuracy": passed / n if n else 0.0, "scenarios": details}
 
 
 async def _run_scenario(scenario):
@@ -217,30 +222,20 @@ async def main():
                         help="准确率低于该阈值时以非零码退出")
     args = parser.parse_args()
 
-    scenarios = _load_scenarios(args.scenarios)
-    if not scenarios:
+    result = await run_diagnosis(args.scenarios, args.limit)
+    if result["n"] == 0:
         print(f"未找到场景文件：{args.scenarios}")
         sys.exit(2)
-    if args.limit:
-        scenarios = scenarios[: args.limit]
 
-    print(f"共 {len(scenarios)} 个场景，开始评估（真实 LLM）...\n")
-    passed = 0
-    for sc in scenarios:
-        name = sc.get("name", "unnamed")
-        response = await _run_scenario(sc)
-        ok, matched = _score(response, sc.get("expected", {}))
-        passed += int(ok)
-        preview = (response or "").replace("\n", " ")[:120]
-        print(f"[{'PASS' if ok else 'FAIL'}] {name}")
-        print(f"      命中关键词: {matched or '无'}  (预期至少 {sc.get('expected', {}).get('min_keyword_hits', 1)} 个)")
-        print(f"      响应预览: {preview}\n")
+    print(f"共 {result['n']} 个场景，开始评估（真实 LLM）...\n")
+    for d in result["scenarios"]:
+        print(f"[{'PASS' if d['ok'] else 'FAIL'}] {d['name']}")
+        print(f"      命中关键词: {d['matched'] or '无'}")
+        print(f"      响应预览: {d['preview']}\n")
 
-    total = len(scenarios)
-    acc = passed / total if total else 0.0
-    print(f"准确率: {passed}/{total} = {acc:.1%}")
+    print(f"准确率: {result['passed']}/{result['n']} = {result['accuracy']:.1%}")
 
-    if acc < args.min_accuracy:
+    if result["accuracy"] < args.min_accuracy:
         sys.exit(1)
 
 

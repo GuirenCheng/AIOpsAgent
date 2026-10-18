@@ -22,7 +22,8 @@ NC = \033[0m
         install install-dev dev run test test-quick format lint fix type-check \
         security pre-commit-install pre-commit check-all coverage docs shell \
         ipython watch add add-dev remove list-docs test-upload sync logs \
-        start-cls stop-cls start-monitor stop-monitor start-api stop-api status-mcp
+        start-cls stop-cls start-monitor stop-monitor start-api stop-api status-mcp \
+        eval eval-check eval-baseline
 
 # ============================================================
 # 默认目标：显示帮助信息
@@ -76,6 +77,11 @@ help:
 	@echo "  $(YELLOW)make fix$(NC)          - 🔧 自动修复问题"
 	@echo "  $(YELLOW)make test$(NC)         - 🧪 运行测试"
 	@echo "  $(YELLOW)make check-all$(NC)    - ✅ 运行所有检查"
+	@echo ""
+	@echo "$(CYAN)【评测】$(NC)"
+	@echo "  $(YELLOW)make eval$(NC)         - 🧪 全量评测（检索+诊断，需 Milvus/LLM）"
+	@echo "  $(YELLOW)make eval-check$(NC)   - 🔍 评测并对比基线，退化则报错"
+	@echo "  $(YELLOW)make eval-baseline$(NC)- 📌 跑评测并保存为新基线"
 	@echo ""
 	@echo "$(CYAN)【其他】$(NC)"
 	@echo "  $(YELLOW)make clean$(NC)        - 🧹 清理临时文件"
@@ -574,6 +580,18 @@ check-all:  ## 运行所有检查
 	@$(MAKE) lint
 	@$(MAKE) test
 	@echo "$(GREEN)✅ 所有检查通过！$(NC)"
+
+eval:  ## 全量评测（检索+诊断，需 Milvus 与真实 LLM）
+	@echo "$(YELLOW)🧪 运行评测...$(NC)"
+	python3 scripts/run_eval.py
+
+eval-check:  ## 评测并对比基线，退化则非零退出
+	@echo "$(YELLOW)🔍 评测回归检查...$(NC)"
+	python3 scripts/run_eval.py --check
+
+eval-baseline:  ## 跑评测并保存为新基线
+	@echo "$(YELLOW)📌 生成评测基线...$(NC)"
+	python3 scripts/run_eval.py --save-baseline
 
 pre-commit-install:  ## 安装 pre-commit hooks
 	@echo "$(YELLOW)🔗 安装 pre-commit hooks...$(NC)"
