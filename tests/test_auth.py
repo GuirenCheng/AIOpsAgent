@@ -201,3 +201,35 @@ async def test_bootstrap_admin_skips_when_auth_disabled(tmp_path, monkeypatch):
         assert await store.count() == 0
     finally:
         await store.close()
+
+
+async def test_bootstrap_admin_tolerates_duplicate_race(tmp_path, monkeypatch):
+    """多 worker 同时启动时，输掉建号竞态的进程不应崩溃（create_user 撞 UNIQUE）。"""
+    monkeypatch.setattr(config, "api_auth_enabled", True)
+    monkeypatch.setattr(config, "auth_admin_username", "root")
+    monkeypatch.setattr(config, "auth_admin_password", "secret123")
+
+    store = UserStore(db_path=str(tmp_path / "users.sqlite"))
+    monkeypatch.setattr(auth, "user_store", store)
+
+    # 模拟竞态：count() 仍为 0（两个 worker 都通过了检查），但真正 INSERT 时撞 UNIQUE
+    async def fake_create_user(username, password, role):
+        raise ValueError(f"用户名 {username} 已存在")
+
+    monkeypatch.setattr(store, "create_user", fake_create_user)
+    try:
+        await ensure_bootstrap_admin()  # 不应抛异常
+    finally:
+        await store.close()
+
+
+async def test_userstore_connection_uses_wal_and_busy_timeout(tmp_path):
+    store = UserStore(db_path=str(tmp_path / "users.sqlite"))
+    try:
+        conn = await store._get_conn()
+        mode = (await (await conn.execute("PRAGMA journal_mode")).fetchone())[0]
+        assert str(mode).lower() == "wal"
+        timeout = (await (await conn.execute("PRAGMA busy_timeout")).fetchone())[0]
+        assert timeout == 5000
+    finally:
+        await store.close()

@@ -102,7 +102,12 @@ class RollbackManager:
             await notify_rollback_failure(item["failed_tool"], rollback_tool, str(e), item["server"])
 
     def start(self) -> None:
-        """启动 supervisor 后台任务（幂等）。"""
+        """启动 supervisor 后台任务（幂等）。
+
+        多 worker（uvicorn --workers N）下每个进程各起一份 supervisor 是**正确**的：
+        回滚任务由「执行失败写操作的那个进程」enqueue、由同一进程消费，天然不跨进程，
+        不会重复回滚或丢失（队列是进程内的，失败信号也产生于进程内）。
+        """
         if self._task is None:
             self._task = asyncio.create_task(self._run())
             logger.info("回滚 supervisor 已启动")

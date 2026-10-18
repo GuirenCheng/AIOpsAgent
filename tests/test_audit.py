@@ -66,6 +66,19 @@ async def test_query_since_before_filter(tmp_path):
         await lg.close()
 
 
+async def test_connection_uses_wal_and_busy_timeout(tmp_path):
+    """多 worker 下 SQLite 需 WAL + busy_timeout，避免并发写 SQLITE_BUSY。"""
+    lg = AuditLogger(db_path=str(tmp_path / "audit.sqlite"))
+    try:
+        conn = await lg._get_conn()
+        mode = (await (await conn.execute("PRAGMA journal_mode")).fetchone())[0]
+        assert str(mode).lower() == "wal"
+        timeout = (await (await conn.execute("PRAGMA busy_timeout")).fetchone())[0]
+        assert timeout == 5000
+    finally:
+        await lg.close()
+
+
 async def test_status_counts(tmp_path):
     lg = AuditLogger(db_path=str(tmp_path / "audit.sqlite"))
     try:

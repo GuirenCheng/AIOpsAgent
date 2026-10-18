@@ -59,7 +59,8 @@
 - [x] 谁来做：你（配置 + 压测验证）。
 - [x] 工作量：2 ~ 3 天。
 - [x] ✅ 已完成（2026-10-18）：补跨 worker 单测（锁互斥 / 审批跨进程决定）；`/health` 增加 Redis 依赖探测，新增 `/health/live` 存活探针；app/redis 加 Docker 健康检查，Milvus 全部服务补 `restart: unless-stopped`（修复宿主机重启后不自动拉起）。
-- [ ] ⚠️ 待办：真正的多 worker 部署（uvicorn `--workers N`）尚未开启——需先确认 lifespan 里的回滚 supervisor 不会每个 worker 各起一份；真实 Redis 下的跨进程并发压测未做。
+- [x] ✅ 多 worker 启动安全收口（2026-10-18）：确认回滚 supervisor「每进程各起一份」是**正确**的（回滚信号由失败写操作的进程产生并由同进程消费，不跨进程、不重复/不丢，`rollback.py::start` 已注释）；修复 `ensure_bootstrap_admin` 的多进程竞态（两个 worker 同时建号撞 UNIQUE 会崩 lifespan，现捕获 ValueError 静默跳过）；审计库 `audit.sqlite` 与用户库 `users.sqlite` 连接加 `PRAGMA busy_timeout=5000` + `journal_mode=WAL`，多进程并发写不再 `SQLITE_BUSY`（审计落库不再静默丢）。配 3 个回归测试。
+- [ ] ⚠️ 待办：真正的 `uvicorn --workers N` 部署需先 `harness_backend=redis`（否则进程内锁/审批跨 worker 失效，写操作互斥会被打破）；真实 Redis 下的跨进程并发压测未做；LangGraph `checkpoints.sqlite` 的多进程写竞争（会话持久化）尚未评估。
 
 ### C2｜权限与多用户（RBAC）
 

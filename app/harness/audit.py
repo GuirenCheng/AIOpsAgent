@@ -51,6 +51,10 @@ class AuditLogger:
             if db_dir:
                 os.makedirs(db_dir, exist_ok=True)
             self._conn = await aiosqlite.connect(db_path)
+            # 多进程（uvicorn --workers N）安全：先设 busy_timeout（避免并发写 SQLITE_BUSY），
+            # 再开 WAL（读写不互斥，多进程各持一连接也能并发写）。
+            await self._conn.execute("PRAGMA busy_timeout=5000")
+            await self._conn.execute("PRAGMA journal_mode=WAL")
             await self._conn.execute(_SCHEMA)
             # 迁移：旧库补 actor 列（C2 之前审计无账号维度）
             cur = await self._conn.execute("PRAGMA table_info(tool_calls)")

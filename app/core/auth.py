@@ -183,6 +183,9 @@ class UserStore:
             if db_dir:
                 os.makedirs(db_dir, exist_ok=True)
             self._conn = await aiosqlite.connect(db_path)
+            # 多进程（uvicorn --workers N）安全：busy_timeout 防 SQLITE_BUSY，WAL 让多进程可并发写。
+            await self._conn.execute("PRAGMA busy_timeout=5000")
+            await self._conn.execute("PRAGMA journal_mode=WAL")
             await self._conn.execute(_USERS_SCHEMA)
             await self._conn.commit()
         return self._conn
@@ -288,19 +291,31 @@ user_store = UserStore()
 # ---------------------------------------------------------------------------
 
 async def ensure_bootstrap_admin() -> None:
-    """首次启动（用户表为空）时创建初始管理员账号；密码为空则随机生成并打印一次。"""
+    """首次启动（用户表为空）时创建初始管理员账号；密码为空则随机生成并打印一次。
+
+    多 worker（uvicorn --workers N）下每个进程都会跑一次 lifespan：可能多个进程同时
+    通过 count()==0 检查，再同时 create_user 撞 username UNIQUE。这里捕获该竞态，输掉
+    的进程静默跳过（真正建号者才打印随机密码，避免误导）。
+    """
     if not config.api_auth_enabled:
         return
     if await user_store.count() > 0:
         return
     username = config.auth_admin_username or "admin"
     password = config.auth_admin_password
+    generated = not password
     if not password:
         password = secrets.token_urlsafe(12)
+    try:
+        await user_store.create_user(username, password, Role.ADMIN)
+    except ValueError:
+        # 多进程竞态：另一个 worker 已抢先建号（username UNIQUE 兜底），不算错误
+        logger.info(f"初始管理员 {username} 已由其他进程创建，跳过")
+        return
+    if generated:
         logger.warning(
             f"首次启动：已创建初始管理员 {username}，临时密码：{password}（请立即记录并修改）"
         )
-    await user_store.create_user(username, password, Role.ADMIN)
     logger.info(f"已创建初始管理员账号：{username}")
 
 
