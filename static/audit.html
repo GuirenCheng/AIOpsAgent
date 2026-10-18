@@ -126,6 +126,7 @@
         .badge.approval_approved { background: rgba(34,197,94,.15); color: var(--green); }
         .badge.pending_approval { background: rgba(234,179,8,.15); color: var(--yellow); }
         .badge.overloaded, .badge.conflict { background: rgba(245,158,11,.15); color: var(--orange); }
+        .badge.denied { background: rgba(239,68,68,.15); color: var(--red); }
         .badge.default { background: rgba(154,163,178,.15); color: var(--text-dim); }
 
         .empty { padding: 40px; text-align: center; color: var(--text-dim); }
@@ -171,6 +172,7 @@
             <option value="approval_expired">approval_expired</option>
             <option value="overloaded">overloaded</option>
             <option value="conflict">conflict</option>
+            <option value="denied">denied</option>
         </select>
         <label>工具</label>
         <input id="fTool" type="text" placeholder="如 restart_service">
@@ -221,7 +223,7 @@
         const STATUS_BADGE = new Set([
             'success', 'error', 'timeout', 'rollback_required', 'rollback_executed',
             'rollback_failed', 'rollback_skipped', 'pending_approval', 'approval_approved',
-            'approval_denied', 'approval_expired', 'overloaded', 'conflict',
+            'approval_denied', 'approval_expired', 'overloaded', 'conflict', 'denied',
         ]);
 
         async function api(path) {

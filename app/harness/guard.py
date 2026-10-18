@@ -45,6 +45,11 @@ def _extract_resource_from_args(args: dict, spec) -> str:
     return str(value)
 
 
+def _parse_write_allowlist() -> set[str]:
+    """解析写操作服务白名单（逗号分隔，去空白；空 = 全部拒绝 fail-closed）。"""
+    return {s.strip() for s in config.harness_write_allowlist.split(",") if s.strip()}
+
+
 async def _run_with_retry(
     tool_name: str,
     args: dict,
@@ -143,6 +148,24 @@ async def execute_guarded(
     spec = tool_registry.get(tool_name)
     # 非幂等工具：单次执行，失败直接返回（不重试，防重复执行写操作）
     max_attempts = max_retries if spec.idempotent else 1
+
+    # 写操作服务白名单（A2，最外层 fail-closed）：白名单外的服务直接拒绝，
+    # 不进审批门 / 并发槽位 / 资源锁 / 执行，也不触发回滚（根本没动过生产）。
+    if spec.requires_write_allowlist:
+        resource = _extract_resource_from_args(args, spec)
+        if resource not in _parse_write_allowlist():
+            logger.warning(f"服务 {resource} 不在写操作白名单中，拒绝执行 {tool_name}")
+            await audit_logger.record(
+                tool=tool_name,
+                server=server,
+                args=args,
+                status="denied",
+                error=f"服务 {resource} 不在写操作白名单中",
+            )
+            return GuardedResult(
+                ok=False,
+                error=f"服务 {resource} 不在允许自动写操作的白名单中，已拒绝执行",
+            )
 
     # 审批门（最外层）：高危操作先经人工审批，批准才放行，拒绝/超时 fail-closed。
     if config.harness_approval_enabled and requires_approval(

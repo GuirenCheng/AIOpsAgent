@@ -24,9 +24,10 @@ async def test_non_idempotent_tool_is_not_retried(mocker):
     mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     # restart_service 是 HIGH 风险写操作，会触发审批门；本测试聚焦幂等语义，关闭审批
     mocker.patch("app.agent.mcp_client.config.harness_approval_enabled", False)
+    mocker.patch("app.harness.guard.config.harness_write_allowlist", "svc")
     handler = AsyncMock(side_effect=Exception("boom"))
 
-    result = await retry_interceptor(_request("restart_service"), handler, max_retries=3, delay=0)
+    result = await retry_interceptor(_request("restart_service", {"service_name": "svc"}), handler, max_retries=3, delay=0)
 
     assert handler.await_count == 1  # 写操作只执行一次
     assert result.isError is True

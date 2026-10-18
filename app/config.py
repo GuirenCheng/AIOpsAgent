@@ -125,6 +125,9 @@ class Settings(BaseSettings):
     harness_approval_risk_threshold:str = 'high'
     # 等待人工审批的超时（秒），超时视为拒绝（fail-closed，默认 5 分钟）
     harness_approval_timeout_seconds:float = 300.0
+    # 写操作服务白名单（A2）：允许被自动重启/回滚的服务名（逗号分隔）。
+    # 空 = 全部拒绝（fail-closed）；接入真实写操作前必须先在此列出允许触碰的服务。
+    harness_write_allowlist:str = ''
     # Harness 后端（多进程/分布式支持）：锁/审批内部实现可切换
     # in_process = 进程内 asyncio 原语（默认，单 worker 部署零依赖）；
     # redis = Redis 分布式锁/审批（多 worker 时锁与审批跨进程一致）

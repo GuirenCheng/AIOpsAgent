@@ -89,6 +89,7 @@ async def test_list_pending(mocker):
 
 async def test_interceptor_approves_high_risk_tool(mocker):
     mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
+    mocker.patch("app.harness.guard.config.harness_write_allowlist", "svc")
     mocker.patch("app.harness.guard.approval_manager.request", new=AsyncMock(return_value="appr-1"))
     mocker.patch("app.harness.guard.approval_manager.wait_for_decision", new=AsyncMock(return_value=ApprovalStatus.APPROVED))
 
@@ -101,6 +102,7 @@ async def test_interceptor_approves_high_risk_tool(mocker):
 
 async def test_interceptor_denies_high_risk_tool(mocker):
     mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
+    mocker.patch("app.harness.guard.config.harness_write_allowlist", "svc")
     mocker.patch("app.harness.guard.approval_manager.request", new=AsyncMock(return_value="appr-1"))
     mocker.patch("app.harness.guard.approval_manager.wait_for_decision", new=AsyncMock(return_value=ApprovalStatus.DENIED))
 
@@ -126,6 +128,7 @@ async def test_interceptor_skips_approval_for_low_risk(mocker):
 async def test_interceptor_skips_approval_when_disabled(mocker):
     mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     mocker.patch("app.agent.mcp_client.config.harness_approval_enabled", False)
+    mocker.patch("app.harness.guard.config.harness_write_allowlist", "svc")
     req_mock = mocker.patch("app.harness.guard.approval_manager.request", new=AsyncMock())
 
     async def handler(request):
@@ -139,6 +142,7 @@ async def test_interceptor_skips_approval_when_disabled(mocker):
 async def test_interceptor_rollback_hint_on_failed_write(mocker):
     audit_mock = mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     mocker.patch("app.agent.mcp_client.config.harness_approval_enabled", False)
+    mocker.patch("app.harness.guard.config.harness_write_allowlist", "svc")
 
     async def failing_handler(request):
         raise RuntimeError("重启失败")

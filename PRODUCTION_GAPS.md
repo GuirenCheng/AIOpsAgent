@@ -22,10 +22,10 @@
 
 ### A2｜真实写操作（restart / rollback）
 
-- [ ] 现状：`restart_service` / `rollback_service` 是 mock（只 sleep 1 秒）。
-- [ ] 缺什么：先确认生产是 K8s / systemd / 云 API 哪种，再写真实实现；回滚要有真实目标（版本/快照）；定「哪些服务允许被自动重启」白名单。
-- [ ] 谁来做：需要生产环境访问权限。
-- [ ] 工作量：2 ~ 5 天，**必须放在最后**。
+- [x] 现状：`restart_service` / `rollback_service` 是 mock（只 sleep 1 秒）。
+- [x] 缺什么：先确认生产是 K8s / systemd / 云 API 哪种，再写真实实现；回滚要有真实目标（版本/快照）；定「哪些服务允许被自动重启」白名单。
+- [x] ✅ 已完成「框架 + 白名单」（2026-10-18）：写操作抽成可插拔后端 `mcp_servers/write_ops.py`（`WriteOpBackend` 基类 + `MockWriteOpBackend` 默认 + `_UnconfiguredBackend` 占位，按 `WRITE_OP_BACKEND` 环境变量切换；k8s/systemd/tencent 选中即显式报错，绝不静默回退 mock）；`monitor_server` 的 restart/rollback 改为调用后端；护栏层新增写操作服务白名单 `HARNESS_WRITE_ALLOWLIST`（`execute_guarded` 最外层 fail-closed 检查，未列出的服务直接拒绝，状态记 `denied` 进审计/大盘）；`.env.example` 补两处配置说明；配 8 个新单测。
+- [ ] ⚠️ 待办：真实后端实现（k8s/systemd/tencent）仍待确认生产环境后接入——需生产访问权限，2~5 天，**放在最后**。
 
 ---
 

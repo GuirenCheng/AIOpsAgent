@@ -22,6 +22,7 @@ ANOMALY_STATUSES = {
     "rollback_skipped",
     "approval_expired",
     "approval_denied",
+    "denied",
 }
 
 

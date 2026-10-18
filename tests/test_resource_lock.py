@@ -53,6 +53,7 @@ async def test_interceptor_conflicts_on_same_resource(mocker):
     mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     # restart_service 是 HIGH 风险写操作，会触发审批门；本测试聚焦资源锁，关闭审批
     mocker.patch("app.agent.mcp_client.config.harness_approval_enabled", False)
+    mocker.patch("app.harness.guard.config.harness_write_allowlist", "svc-x")
     entered = asyncio.Event()
     release = asyncio.Event()
 

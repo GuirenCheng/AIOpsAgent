@@ -75,6 +75,7 @@ async def test_write_failure_enqueues_rollback(mocker):
 
     mocker.patch("app.harness.guard.audit_logger.record", new=AsyncMock())
     mocker.patch("app.harness.guard.config.harness_approval_enabled", False)
+    mocker.patch("app.harness.guard.config.harness_write_allowlist", "svc")
     enqueue = mocker.patch("app.harness.guard.rollback_manager.enqueue", new=AsyncMock())
 
     async def failing():

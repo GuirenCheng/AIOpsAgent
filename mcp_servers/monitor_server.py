@@ -21,6 +21,12 @@ from typing import Optional, Dict, Any
 from fastapi import FastAPI
 from fastmcp import FastMCP
 
+try:
+    # 独立进程运行（python mcp_servers/monitor_server.py）：sys.path[0] 即 mcp_servers/，直接导入同目录模块
+    from write_ops import write_op_backend
+except ImportError:  # 被 importlib 直接加载（如测试）：从包路径导入
+    from mcp_servers.write_ops import write_op_backend
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -593,10 +599,11 @@ def get_host_metrics() -> Dict[str, Any]:
 @mcp.tool()
 @log_tool_call
 def restart_service(service_name: str, reason: str = "") -> Dict[str, Any]:
-    """重启指定服务（Mock 演示：只模拟耗时并返回，不真正重启进程）。
+    """重启指定服务（实际行为由写操作后端 WRITE_OP_BACKEND 决定，默认 mock 只模拟耗时）。
 
     这是 harness 工具契约层的写操作样例：非只读、非幂等、高危、有回滚。
-    用于验证「非幂等工具不自动重试」等契约行为；接入真实部署前请替换为实际重启逻辑。
+    用于验证「非幂等工具不自动重试」等契约行为；接入真实部署前请在
+    mcp_servers/write_ops.py 实现真实后端（k8s/systemd/tencent）。
 
     Args:
         service_name: 服务名称（必填），示例 "data-sync-service"
@@ -605,20 +612,13 @@ def restart_service(service_name: str, reason: str = "") -> Dict[str, Any]:
     Returns:
         Dict: {"service_name", "status": "restarted", "reason", "restarted_at", "mock"}
     """
-    time.sleep(1)  # 模拟重启耗时
-    return {
-        "service_name": service_name,
-        "status": "restarted",
-        "reason": reason or "manual",
-        "restarted_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "mock": True,
-    }
+    return write_op_backend.restart(service_name, reason)
 
 
 @mcp.tool()
 @log_tool_call
 def rollback_service(service_name: str, reason: str = "") -> Dict[str, Any]:
-    """回滚指定服务到上一稳定版本（Mock 演示：只模拟耗时并返回，不真正回滚）。
+    """回滚指定服务到上一稳定版本（实际行为由写操作后端 WRITE_OP_BACKEND 决定，默认 mock 只模拟耗时）。
 
     这是 harness 自动回滚 supervisor 的回滚动作样本：写操作（restart_service）失败后，
     由后台 supervisor 按名调用本工具回滚。契约 risk=MEDIUM（低于默认 HIGH 审批阈值），
@@ -631,14 +631,7 @@ def rollback_service(service_name: str, reason: str = "") -> Dict[str, Any]:
     Returns:
         Dict: {"service_name", "status": "rolled_back", "reason", "rolled_back_at", "mock"}
     """
-    time.sleep(1)  # 模拟回滚耗时
-    return {
-        "service_name": service_name,
-        "status": "rolled_back",
-        "reason": reason or "auto",
-        "rolled_back_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "mock": True,
-    }
+    return write_op_backend.rollback(service_name, reason)
 
 
 if __name__ == '__main__':

@@ -24,6 +24,7 @@ class ToolSpec(BaseModel):
     - priority: 调度优先级（越大越优先；Milestone 2 并发满时高优先级先入槽）
     - has_rollback: 是否有可执行的回滚手段
     - rollback_tool: 回滚动作名（Milestone 3，写操作失败后提示执行的回滚工具）
+    - requires_write_allowlist: 是否受「写操作服务白名单」约束（A2，重启/回滚等服务）
     - timeout_seconds: 该工具调用的超时上限（秒）
     """
     name: str
@@ -34,4 +35,5 @@ class ToolSpec(BaseModel):
     priority: int = 0
     has_rollback: bool = False
     rollback_tool: str | None = None
+    requires_write_allowlist: bool = False
     timeout_seconds: float = 30.0

@@ -79,6 +79,7 @@ def _seed_registry(registry: ToolRegistry) -> ToolRegistry:
         priority=10,
         has_rollback=True,
         rollback_tool="rollback_service",
+        requires_write_allowlist=True,
         timeout_seconds=60.0,
     ))
     # 回滚动作（mock）：risk=MEDIUM（低于默认 HIGH 审批阈值）→ 自动回滚无需人工在环；
@@ -91,6 +92,7 @@ def _seed_registry(registry: ToolRegistry) -> ToolRegistry:
         risk=RiskLevel.MEDIUM,
         has_rollback=False,
         rollback_tool=None,
+        requires_write_allowlist=True,
         timeout_seconds=60.0,
     ))
     return registry
