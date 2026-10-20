@@ -95,6 +95,12 @@ class Settings(BaseSettings):
     rag_rerank_enabled: bool = True       # 是否调用 DashScope 重排；关闭则只用 RRF 融合顺序、不做阈值过滤
     rag_rerank_model: str = "qwen3-rerank"  # DashScope 重排模型
 
+    # Token 用量记账与成本预算（把隐性省钱变显性管钱）
+    token_usage_enabled: bool = True          # 是否落库统计每次 DashScope 调用的 token 用量
+    token_usage_db_path: str = 'data/token_usage.sqlite'  # 用量库路径（独立于审计库）
+    token_budget_enabled: bool = False        # 是否启用每日 token 预算告警
+    token_budget_daily_limit: int = 0         # 每日 token 预算上限（0=不限）；超额只告警不阻断
+
     # 安全 / 生产加固配置
     # 请求鉴权（默认关闭；生产环境建议开启并设置 API_AUTH_KEY）
     api_auth_enabled:bool = False

@@ -28,6 +28,7 @@ from app.agent.guardrails import citation_check, no_context_guard, tool_failure_
 from app.agent.mcp_client import get_mcp_client_with_retry
 from app.config import config
 from app.core.checkpointer import create_checkpointer
+from app.services.token_usage import session_id_context, token_usage_callback
 from app.tools.tool_wrapper import guarded_get_current_time, guarded_retrieve_knowledge
 
 
@@ -102,7 +103,9 @@ class RagAgentService:
             api_key = config.dashscope_api_key,
             base_url = config.dashscope_api_base,
             temperature=config.rag_temperature,
-            streaming = streaming
+            streaming = streaming,
+            stream_usage = True,  # 流式也返回 usage，供 token 记账（DashScope 兼容模式支持 include_usage）
+            callbacks = [token_usage_callback],
         )
 
         # 降级模型（可选）：主模型反复失败时切换，避免拿到残缺上下文乱答。
@@ -114,7 +117,9 @@ class RagAgentService:
                 api_key = config.dashscope_api_key,
                 base_url = config.dashscope_api_base,
                 temperature=config.rag_temperature,
-                streaming = streaming
+                streaming = streaming,
+                stream_usage = True,
+                callbacks = [token_usage_callback],
             )
 
         # 定义基础工具
@@ -269,6 +274,9 @@ class RagAgentService:
                 }
             }
 
+            # 记录会话上下文，供 token 用量记账归集（asyncio 任务级 contextvar，不跨请求泄漏）
+            session_id_context.set(session_id)
+
             result = await self.agent.ainvoke(
                 input = agent_input,
                 config = config_dict,
@@ -332,6 +340,9 @@ class RagAgentService:
                     "thread_id":session_id
                 }
             }
+
+            # 记录会话上下文，供 token 用量记账归集（asyncio 任务级 contextvar，不跨请求泄漏）
+            session_id_context.set(session_id)
 
             async for token,metadata in self.agent.astream(
                 input = agent_input,

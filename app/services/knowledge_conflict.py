@@ -22,6 +22,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from app.config import config
+from app.services.token_usage import token_usage_callback
 
 
 class ConflictDecision(BaseModel):
@@ -81,6 +82,7 @@ def detect_conflict(docs: List[Document]) -> ConflictDecision:
             api_key=config.dashscope_api_key,
             base_url=config.dashscope_api_base,
             temperature=0,
+            callbacks=[token_usage_callback],
         )
         chain = CONFLICT_PROMPT | llm.with_structured_output(ConflictDecision)
         decision = chain.invoke({"candidates": _render_candidates(docs)})

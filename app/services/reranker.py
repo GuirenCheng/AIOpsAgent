@@ -11,6 +11,7 @@ from langchain_core.documents import Document
 from loguru import logger
 
 from app.config import config
+from app.services.token_usage import token_usage_recorder
 
 # 显式注入统一 API key（SDK 默认读 DASHSCOPE_API_KEY 环境变量，这里保持一致）
 dashscope.api_key = config.dashscope_api_key
@@ -57,4 +58,16 @@ def rerank_documents(
 
     out.sort(key=lambda t: t[1], reverse=True)
     logger.debug(f"重排完成：候选 {len(docs)} → 返回 {len(out)}（模型 {config.rag_rerank_model}）")
+
+    # 记重排的 token 用量（重排只有输入 tokens，没有生成 tokens）
+    usage = getattr(resp, "usage", None)
+    total = int(getattr(usage, "total_tokens", 0) or 0)
+    if total > 0:
+        token_usage_recorder.record(
+            source="rerank",
+            model=config.rag_rerank_model,
+            input_tokens=total,
+            total_tokens=total,
+        )
+
     return out

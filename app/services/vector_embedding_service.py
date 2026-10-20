@@ -6,6 +6,7 @@ from loguru import logger
 from openai import OpenAI
 
 from app.config import config
+from app.services.token_usage import token_usage_recorder
 
 
 class DashScopeEmbeddings(Embeddings):
@@ -81,6 +82,7 @@ class DashScopeEmbeddings(Embeddings):
             embeddings = [item.embedding for item in response.data]
             logger.debug(f"批量嵌入完成，维度: {len(embeddings[0])}")
 
+            self._record_usage(response)
             return embeddings
         except Exception as e:
             logger.error(f"批量嵌入失败：{e}")
@@ -112,11 +114,28 @@ class DashScopeEmbeddings(Embeddings):
             embedding = response.data[0].embedding
             logger.debug(f"查询嵌入完成，维度:{len(embedding)}")
 
+            self._record_usage(response)
             return embedding
 
         except Exception as e:
             logger.error(f"查询嵌入失败：{e}")
             raise RuntimeError(f"查询嵌入失败:{e}") from e
+
+    def _record_usage(self, response) -> None:
+        """记嵌入的 token 用量（嵌入只有输入 tokens，没有生成 tokens）。"""
+        try:
+            usage = getattr(response, "usage", None)
+            prompt = int(getattr(usage, "prompt_tokens", 0) or 0)
+            total = int(getattr(usage, "total_tokens", 0) or prompt)
+            if total > 0:
+                token_usage_recorder.record(
+                    source="embedding",
+                    model=self.model,
+                    input_tokens=prompt,
+                    total_tokens=total,
+                )
+        except Exception as e:  # noqa: BLE001 —— 记账失败不影响嵌入
+            logger.debug(f"嵌入 token 记账失败（忽略）：{e}")
 
 # 全局单例
 vector_embedding_service = DashScopeEmbeddings(

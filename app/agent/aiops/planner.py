@@ -14,6 +14,7 @@ from app.agent.mcp_client import get_mcp_client_with_retry
 from app.config import config
 from app.tools.tool_wrapper import guarded_get_current_time, guarded_retrieve_knowledge
 from app.agent.aiops.state import PlanExecuteState, PlanStep, coerce_step
+from app.services.token_usage import token_usage_callback
 
 
 class Plan(BaseModel):
@@ -133,7 +134,8 @@ async def planner(state: PlanExecuteState) -> Dict[str, Any]:
             model=config.rag_model,
             api_key=config.dashscope_api_key,
             base_url=config.dashscope_api_base,
-            temperature=0
+            temperature=0,
+            callbacks=[token_usage_callback],
         )
 
         planner_chain = planner_prompt | llm.with_structured_output(Plan)

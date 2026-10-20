@@ -12,6 +12,7 @@ from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 
 from app.config import config
+from app.services.token_usage import token_usage_callback
 
 # 顶层意图：diagnose=故障诊断（走 AIOps Plan-Execute-Replan）；chat=知识问答（走 RAG）
 IntentType = Literal["diagnose", "chat"]
@@ -87,6 +88,7 @@ async def classify_intent(text: str) -> IntentDecision:
             api_key=config.dashscope_api_key,
             base_url=config.dashscope_api_base,
             temperature=0,
+            callbacks=[token_usage_callback],
         )
         chain = INTENT_PROMPT | llm.with_structured_output(IntentDecision)
         decision = await chain.ainvoke({"question": text})
