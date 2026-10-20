@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     rag_temperature:float = 0.2          # 事实型 RAG 用低温度，降低自由发挥
     rag_relevance_threshold:float = 0.5  # 检索相关性阈值(0~1)，低于此值视为不可靠、不喂给模型
     rag_history_max_messages:int = 7     # 对话历史最多保留条数(含系统消息)，超出则自动裁剪
+    # 知识冲突处理：检索命中多条不同来源资料时，先 LLM 判断是否矛盾，冲突则按权威/最新自动仲裁
+    rag_conflict_resolution_enabled:bool = True  # 冲突检测+仲裁总开关
+    rag_authority_rules:str = ''  # 权威度规则（逗号分隔「前缀:权重」，如 official:3,runbook:2）；空=全部同权，仲裁退化为最新优先
     # 模型调用韧性（防止偶发失败导致模型拿到残缺上下文乱答）
     rag_model_retry:int = 2              # 模型调用失败重试次数
     rag_fallback_model:str = ''          # 降级模型名（空 = 不启用；如 qwen-plus），主模型反复失败时切换

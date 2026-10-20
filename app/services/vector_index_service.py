@@ -1,11 +1,12 @@
 """向量索引服务模块"""
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 from loguru import logger
 
 from app.services.document_splitter_service import document_splitter_service
+from app.services.knowledge_conflict import authority_from_path
 from app.services.vector_store_manager import vector_store_manager
 
 
@@ -158,6 +159,13 @@ class VectorIndexService:
             # 3.使用新的文档分割器
             documents = document_splitter_service.split_document(content,normalized_path)
             logger.info(f"文档分割完成:{file_path} -> {len(documents)}个分片")
+
+            # 3.5 补齐冲突仲裁所需的元数据（权威度 / 更新时间），供 retrieve_knowledge 冲突处理使用
+            updated_at = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+            authority = authority_from_path(normalized_path)
+            for doc in documents:
+                doc.metadata["_updated_at"] = updated_at
+                doc.metadata["_authority"] = authority
 
             # 4.添加文档到向量存储
             if documents:

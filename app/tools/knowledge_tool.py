@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from loguru import logger
 
 from app.config import config
+from app.services.knowledge_conflict import detect_conflict, resolve_conflict
 from app.services.vector_store_manager import vector_store_manager
 
 
@@ -60,6 +61,13 @@ def retrieve_knowledge(query:str) -> Tuple[str,List[Document]]:
             return "未找到可靠的相关资料。", []
 
         docs = [doc for doc, _ in relevant]
+
+        # 知识冲突检测 + 权威/最新自动仲裁：多条不同来源资料间若存在事实矛盾，
+        # 按「权威度降序 → 更新时间降序」只保留赢家，避免把矛盾内容同时喂给模型。
+        if config.rag_conflict_resolution_enabled:
+            relevant = _apply_conflict_resolution(relevant)
+            docs = [doc for doc, _ in relevant]
+
         context = (
             "请严格基于下方参考资料作答，并在每个事实结论后标注引用编号"
             "（形如【参考资料 N】）。\n\n" + format_docs(docs)
@@ -73,6 +81,27 @@ def retrieve_knowledge(query:str) -> Tuple[str,List[Document]]:
         logger.error(f"知识检索工具调用失败:{e}")
         return f"检索知识时发生错误:{str(e)}",[]
 
+
+def _apply_conflict_resolution(relevant: List[Tuple[Document, float]]) -> List[Tuple[Document, float]]:
+    """对检索结果做冲突检测 + 仲裁，返回幸存 (doc, score) 列表（保原检索序）。
+
+    只在「≥2 条且来自 ≥2 个不同来源」时触发，同文件多分片不算冲突，省 LLM 调用。
+    """
+    if len(relevant) < 2:
+        return relevant
+
+    docs = [doc for doc, _ in relevant]
+    sources = {doc.metadata.get("_source", "") for doc in docs}
+    if len(sources) < 2:
+        return relevant
+
+    decision = detect_conflict(docs)
+    survivors = resolve_conflict(docs, decision)
+    if len(survivors) == len(docs):
+        return relevant
+
+    survivor_ids = {id(doc) for doc in survivors}
+    return [(doc, score) for doc, score in relevant if id(doc) in survivor_ids]
 
 
 def format_docs(docs: List[Document]) -> str:
