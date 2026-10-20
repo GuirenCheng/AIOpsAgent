@@ -29,6 +29,26 @@ class ChatRequest(BaseModel):
             }
         }
 
+class AgentRequest(BaseModel):
+    '''统一入口请求（意图识别 + 自动分流到诊断/问答）'''
+
+    question: str = Field(
+        ...,
+        description='用户问题（系统自动判断诊断/问答意图）',
+        min_length=1,
+        max_length=config.max_question_length,
+    )
+    session_id: str = Field('default', description='会话ID，用于追踪对话/诊断历史')
+
+    class Config:
+        json_schema_extra = {
+            'example': {
+                'question': '数据同步服务 CPU 飙高，帮我查一下原因',
+                'session_id': 'session-123',
+            }
+        }
+
+
 class ClearRequest(BaseModel):
     '''清空会话请求'''
 

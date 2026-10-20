@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     # RAG 配置
     rag_top_k:int = 3
     rag_model:str = 'qwen-max' # 使用快速响应模型，不带拓展思考
+    # 意图分类模型（统一入口 /api/agent 用；空 = 用 rag_model）。分类是轻量任务，可填更便宜的 qwen-plus 省成本。
+    intent_model:str = ''
     # RAG 防幻觉配置
     rag_temperature:float = 0.2          # 事实型 RAG 用低温度，降低自由发挥
     rag_relevance_threshold:float = 0.5  # 检索相关性阈值(0~1)，低于此值视为不可靠、不喂给模型

@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
-from app.api import health, chat, file, aiops, approval, webhook, audit, auth
+from app.api import health, chat, file, aiops, approval, webhook, audit, auth, agent
 from app.config import config
 from app.core.auth import ensure_bootstrap_admin
 from app.core.middleware import (
@@ -110,6 +110,7 @@ app.include_router(file.router,prefix='/api',tags = ['文件管理'])
 app.include_router(aiops.router,prefix = '/api',tags = ['AIOps智能运维'])
 app.include_router(approval.router,prefix = '/api',tags = ['Harness 人工审批'])
 app.include_router(webhook.router,prefix = '/api',tags = ['告警 Webhook'])
+app.include_router(agent.router,prefix = '/api',tags = ['统一入口'])
 app.include_router(audit.router,prefix = '/api',tags = ['审计与监控'])
 app.include_router(auth.router,prefix = '/api',tags = ['认证与用户'])
 
