@@ -83,10 +83,22 @@ def retrieve(query: str, k: int) -> list:
     return out
 
 
+def retrieve_hybrid(query: str) -> list:
+    """混合检索（向量+BM25→RRF→重排），返回 [(file_name, score), ...]，已按线上 top_k/threshold 过滤。"""
+    from app.services.hybrid_retrieval import hybrid_retrieve  # 惰性 import，非 hybrid 模式不加载 dashscope
+
+    out = []
+    for doc, score in hybrid_retrieve(query):
+        file_name = (doc.metadata or {}).get("_file_name", "未知来源")
+        out.append((file_name, score))
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="RAG 检索质量量化评估")
     parser.add_argument("--golden", default=str(Path(__file__).resolve().parent / "eval" / "retrieval_golden.json"))
     parser.add_argument("--max-k", type=int, default=10, help="检索时向 Milvus 请求的最大 k")
+    parser.add_argument("--hybrid", action="store_true", help="额外跑混合检索（向量+BM25→RRF→重排）并与单路向量对比")
     args = parser.parse_args()
 
     golden = load_retrieval_golden(args.golden)
@@ -168,6 +180,20 @@ def main() -> None:
     print("  - hit@k 反映「正确 runbook 有没有被检索到」；precision@k 反映「喂进去的噪声占比」。")
     print("  - 若某 threshold 下 hit@k 骤降，说明该阈值把正确 chunk 也过滤掉了，需下调。")
     print("  - 优先选 hit@k 高且 threshold 能压低噪声的 (top_k, threshold) 组合。")
+
+    # ---------- 混合检索 vs 单路向量对比 ----------
+    if args.hybrid:
+        print("\n" + "=" * 72)
+        print("混合检索（向量+BM25 → RRF → DashScope 重排）vs 单路向量")
+        print("（混合路径按线上 top_k/threshold 过滤；向量基线按相同 top_k）")
+        print("=" * 72)
+        top_k = config.rag_top_k
+        vec_ranked = [retrieve(item["query"], k=max_k) for item in golden]
+        hyb_ranked = [retrieve_hybrid(item["query"]) for item in golden]
+        for name, ranked in (("单路向量", vec_ranked), ("混合检索", hyb_ranked)):
+            hits = sum(hit_k(r, g["relevant_file"], top_k) for r, g in zip(ranked, golden))
+            prec = sum(precision_k(r, g["relevant_file"], top_k) for r, g in zip(ranked, golden)) / len(golden)
+            print(f"{name}: hit@{top_k}={hits/len(golden):.1%}  precision@{top_k}={prec:.1%}")
 
 
 if __name__ == "__main__":

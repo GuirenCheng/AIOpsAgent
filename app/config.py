@@ -88,6 +88,12 @@ class Settings(BaseSettings):
     # 诊断报告可信度校验（根因结论防幻觉硬校验）
     # 报告生成后逐条核对事实性结论是否有执行证据支撑，无据的自动标「无据可查」
     aiops_report_verification_enabled: bool = True
+    # 生产级混合检索（向量 + BM25 关键词召回 → RRF 融合 → DashScope 重排）
+    # 打开后 retrieve_knowledge 走混合管线；关闭则退回单路向量（评测基线不变）
+    rag_hybrid_retrieval_enabled: bool = True
+    rag_recall_top_k: int = 20            # 每路召回的候选数（融合前，越大召回越全、重排成本越高）
+    rag_rerank_enabled: bool = True       # 是否调用 DashScope 重排；关闭则只用 RRF 融合顺序、不做阈值过滤
+    rag_rerank_model: str = "qwen3-rerank"  # DashScope 重排模型
 
     # 安全 / 生产加固配置
     # 请求鉴权（默认关闭；生产环境建议开启并设置 API_AUTH_KEY）

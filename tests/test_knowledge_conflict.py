@@ -176,6 +176,7 @@ def test_retrieve_knowledge_resolves_conflict(monkeypatch):
         lambda docs: ConflictDecision(has_conflict=True, conflicting_indices=[0, 1], reason="矛盾"),
     )
     monkeypatch.setattr(knowledge_tool.config, "rag_conflict_resolution_enabled", True)
+    monkeypatch.setattr(knowledge_tool.config, "rag_hybrid_retrieval_enabled", False)  # 本测试专测单路向量 + 冲突仲裁
 
     context, docs = knowledge_tool.retrieve_knowledge.func("重启顺序")
     assert "b.md" in context

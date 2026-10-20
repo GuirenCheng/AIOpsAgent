@@ -8,6 +8,7 @@ from loguru import logger
 from langchain_milvus import Milvus
 
 from app.core.milvus_client import milvus_manager
+from app.services.keyword_index import keyword_index
 from app.services.vector_embedding_service import vector_embedding_service
 
 
@@ -100,6 +101,7 @@ class VectorStoreManager:
                 f"批量添加 {len(documents)}个文档到 VectorStore 完成,"
                 f"耗时:{elapsed:.2f}秒，平均：{elapsed/len(documents):.2f}秒/个"
             )
+            keyword_index.mark_dirty()
             return result_ids
         except Exception as e:
             logger.error(f"添加文档失败：{e}")
@@ -129,6 +131,7 @@ class VectorStoreManager:
             deleted_count = result.delete_count if hasattr(result, 'delete_count') else 0
 
             logger.info(f"删除文件旧数据：{file_path},删除数量: {deleted_count}")
+            keyword_index.mark_dirty()
             return deleted_count
 
         except Exception as e:
