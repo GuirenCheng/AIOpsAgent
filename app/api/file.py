@@ -7,14 +7,15 @@ from loguru import logger
 from starlette.responses import JSONResponse
 
 from app.core.auth import Principal, Role, require_role
+from app.services.document_converter import SUPPORTED_EXTENSIONS
 from app.services.vector_index_service import vector_index_service
 
 router = APIRouter()
 
 # 文件上传后存储的路径
 UPLOAD_DIR = Path("./uploads")
-# 支持的文件类型
-ALLOWED_EXTENSIONS = ['txt','md']
+# 支持的文件类型（扩展名列表来自 document_converter，唯一真相源）
+ALLOWED_EXTENSIONS = sorted(SUPPORTED_EXTENSIONS)
 # 单个文件支持最大大小
 MAX_FILE_SIZE = 10*1024*1024
 

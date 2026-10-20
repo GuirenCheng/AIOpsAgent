@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 
 from loguru import logger
 
+from app.services.document_converter import SUPPORTED_EXTENSIONS, load_markdown
 from app.services.document_splitter_service import document_splitter_service
 from app.services.knowledge_conflict import authority_from_path
 from app.services.vector_store_manager import vector_store_manager
@@ -89,8 +90,10 @@ class VectorIndexService:
 
             result.directory_path = str(dir_path)
 
-            # 获取所有支持的文件
-            files = list(dir_path.glob("*.txt")) + list(dir_path.glob("*.md"))
+            # 获取所有支持的文件（扩展名列表来自 document_converter，唯一真相源）
+            files = []
+            for ext in sorted(SUPPORTED_EXTENSIONS):
+                files.extend(dir_path.glob(f"*.{ext}"))
 
             if not files:
                 logger.warning(f"目录中没有找到支持的文件：{target_path}")
@@ -148,16 +151,16 @@ class VectorIndexService:
         logger.info(f"开始索引文件: {path}")
 
         try:
-            # 1.读取文件内容
-            content = path.read_text(encoding="utf-8")
+            # 1.读取文件内容（任意格式 → Markdown：txt/md 直读，pdf/docx/html 等走 MarkItDown 转换）
+            content = load_markdown(path)
             logger.info(f"读取文件: {path},内容长度:{len(content)} 字符")
 
             # 2.删除该文件的旧数据（如果存在）
             normalized_path = path.as_posix()
             vector_store_manager.delete_by_source(normalized_path)
 
-            # 3.使用新的文档分割器
-            documents = document_splitter_service.split_document(content,normalized_path)
+            # 3.使用 Markdown 分割器（转换后全是 Markdown，统一走结构感知切块）
+            documents = document_splitter_service.split_markdown(content, normalized_path)
             logger.info(f"文档分割完成:{file_path} -> {len(documents)}个分片")
 
             # 3.5 补齐冲突仲裁所需的元数据（权威度 / 更新时间），供 retrieve_knowledge 冲突处理使用

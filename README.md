@@ -147,7 +147,7 @@ python -c "import requests, os, time; [requests.post('http://localhost:9900/api/
 | 清空会话 | POST | `/api/chat/clear` | 清空会话历史 |
 | 会话历史 | GET | `/api/chat/session/{id}` | 查询会话历史 |
 | AIOps 诊断 | POST | `/api/aiops` | 自动故障诊断（流式） |
-| 文件上传 | POST | `/api/upload` | 上传并索引文档 |
+| 文件上传 | POST | `/api/upload` | 上传并索引文档（txt/md/pdf/docx/html/pptx/xlsx/csv，非 md 自动转 Markdown） |
 | 目录索引 | POST | `/api/index_directory` | 索引目录下文档 |
 | 待审批列表 | GET | `/api/harness/approvals` | 高危操作待审批单 |
 | 批准 | POST | `/api/harness/approvals/{id}/approve` | 批准高危操作 |
@@ -248,7 +248,7 @@ AIOpsAgent/
 │   ├── cls_server.py                       # CLS 日志查询服务
 │   ├── monitor_server.py                   # 监控数据服务
 │   └── README.md                           # MCP 服务说明
-├── aiops-docs/                             # 运维知识库（Markdown 文档）
+├── aiops-docs/                             # 运维知识库（md/txt/pdf/docx/html 等，非 md 自动转 Markdown 入库）
 ├── logs/                                   # 日志目录（Loguru 自动创建）
 │   └── app_YYYY-MM-DD.log                  # 按天轮转的日志文件
 ├── uploads/                                # 上传文件临时目录

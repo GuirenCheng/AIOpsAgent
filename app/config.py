@@ -173,6 +173,9 @@ class Settings(BaseSettings):
     # 文档分块配置
     chunk_max_size:int = 800
     chunk_overlap: int = 100
+    # 文档格式转换（PDF/Word/HTML/PPTX/XLSX/CSV → Markdown 后入库，走 MarkItDown 离线转换）
+    # 关闭则只接受 txt/md，其余格式在入库时明确报错
+    doc_conversion_enabled: bool = True
 
     # MCP服务配置
     mcp_cls_transport:str = 'streamable-http'
