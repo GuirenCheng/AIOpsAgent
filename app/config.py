@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     rag_model_retry:int = 2              # 模型调用失败重试次数
     rag_fallback_model:str = ''          # 降级模型名（空 = 不启用；如 qwen-plus），主模型反复失败时切换
     rag_max_tool_calls:int = 8           # 单次对话最多工具调用次数（防死循环）
+    # 诊断报告可信度校验（根因结论防幻觉硬校验）
+    # 报告生成后逐条核对事实性结论是否有执行证据支撑，无据的自动标「无据可查」
+    aiops_report_verification_enabled: bool = True
 
     # 安全 / 生产加固配置
     # 请求鉴权（默认关闭；生产环境建议开启并设置 API_AUTH_KEY）

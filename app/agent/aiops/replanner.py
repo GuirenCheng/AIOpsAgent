@@ -17,6 +17,7 @@ from app.agent.aiops.state import (
     coerce_observation,
 )
 from app.agent.aiops.utils import format_tools_description
+from app.agent.aiops.verifier import verify_report, build_verification_section
 from app.agent.mcp_client import get_mcp_client_with_retry
 from app.config import config
 from app.tools.knowledge_tool import retrieve_knowledge
@@ -294,6 +295,14 @@ async def _generate_response(state: PlanExecuteState, llm: ChatQwen) -> Dict[str
             final_response = response_obj.get("response", "")  # type: ignore
 
         logger.info(f"最终响应生成完成，长度:{len(final_response)}")
+
+        # 根因结论硬校验：把报告结论逐条跟执行证据核对，无据的自动标「无据可查」。
+        # verify_report 自身 fail-open，异常时返回空 verdicts，不会破坏报告。
+        if config.aiops_report_verification_enabled:
+            verification = await verify_report(final_response, execution_history, llm)
+            section = build_verification_section(verification)
+            if section:
+                final_response = final_response.rstrip() + "\n\n" + section
 
         return {"response": final_response}
 
