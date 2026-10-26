@@ -14,6 +14,7 @@ from app.agent.aiops.state import PlanExecuteState, PlanStep, Observation, coerc
 from app.agent.mcp_client import get_mcp_client_with_retry
 from app.config import config
 from app.services.token_usage import token_usage_callback
+from app.services.langfuse_trace import get_llm_callbacks
 from app.tools.tool_wrapper import guarded_get_current_time, guarded_retrieve_knowledge
 
 
@@ -109,7 +110,7 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
             api_key=config.dashscope_api_key,
             base_url=config.dashscope_api_base,
             temperature=0,
-            callbacks=[token_usage_callback],
+            callbacks=get_llm_callbacks(),
         )
 
         llm_with_tools = llm.bind_tools(all_tools)

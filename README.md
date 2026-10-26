@@ -15,6 +15,7 @@
 - 🔒 **高危操作审批** - 高危写操作人工在环（approve/deny）
 - 🌐 **Web 界面** - 现代化 UI，支持多种对话模式：快速问答/流式对话
 - 🔌 **MCP 集成** - 日志查询和监控数据工具接入
+- 🔎 **全链路 Trace** - Langfuse 自托管，一个请求一条 trace，回放每一步 LLM 与工具调用
 
 ## 🛠️ 技术栈
 
@@ -23,6 +24,7 @@
 - **向量库**: Milvus
 - **工具协议**: MCP (Model Context Protocol)
 - **分布式（可选）**: Redis 7（harness 多 worker 后端）
+- **可观测**: Langfuse（自托管全链路 trace）
 
 ## 🚀 快速开始
 
@@ -284,6 +286,12 @@ RAG_TOP_K=3
 CHUNK_MAX_SIZE=800
 CHUNK_OVERLAP=100
 
+# Langfuse 全链路 trace（可选，自托管；未开启不影响主流程）
+LANGFUSE_ENABLED=false
+LANGFUSE_HOST=http://localhost:3000
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+
 # Harness 工具执行护栏配置
 HARNESS_BACKEND=in_process              # 锁/审批后端：in_process | redis
 REDIS_URL=redis://localhost:6379/0      # HARNESS_BACKEND=redis 时使用
@@ -293,6 +301,22 @@ HARNESS_APPROVAL_TIMEOUT_SECONDS=300    # 审批等待超时（fail-closed）
 HARNESS_MAX_CONCURRENT_TOOLS=10         # 全局并发工具上限
 HARNESS_LOCK_REDIS_TTL_SECONDS=30       # 分布式锁租约 TTL
 ```
+
+## 🔎 全链路 Trace（Langfuse 自托管）
+
+默认关闭、**fail-open**（未配齐不影响主流程）。开启后**一个 HTTP 请求 = 一条 trace**（`trace_id = request_id`），
+在 Langfuse UI 里可回放 planner / executor / replanner 各次 LLM 调用与工具调用的输入输出与耗时。
+
+### 自托管部署
+
+```bash
+# 官方 compose 起 Langfuse + Postgres（本机 3000 端口）
+git clone https://github.com/langfuse/langfuse.git && cd langfuse
+docker compose up -d
+```
+
+到 `http://localhost:3000` 注册并创建项目，拿到 `Public Key` / `Secret Key`，填入 `.env`（见上方配置），
+设 `LANGFUSE_ENABLED=true` 后重启服务，跑一次诊断或问答即可在 UI 看到对应 trace。
 
 ## 🎯 AIOps 智能运维
 

@@ -15,6 +15,7 @@ from app.config import config
 from app.tools.tool_wrapper import guarded_get_current_time, guarded_retrieve_knowledge
 from app.agent.aiops.state import PlanExecuteState, PlanStep, coerce_step
 from app.services.token_usage import token_usage_callback
+from app.services.langfuse_trace import get_llm_callbacks
 
 
 class Plan(BaseModel):
@@ -135,7 +136,7 @@ async def planner(state: PlanExecuteState) -> Dict[str, Any]:
             api_key=config.dashscope_api_key,
             base_url=config.dashscope_api_base,
             temperature=0,
-            callbacks=[token_usage_callback],
+            callbacks=get_llm_callbacks(),
         )
 
         planner_chain = planner_prompt | llm.with_structured_output(Plan)

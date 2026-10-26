@@ -101,6 +101,13 @@ class Settings(BaseSettings):
     token_budget_enabled: bool = False        # 是否启用每日 token 预算告警
     token_budget_daily_limit: int = 0         # 每日 token 预算上限（0=不限）；超额只告警不阻断
 
+    # Langfuse 全链路 trace（自托管，一个 HTTP 请求 = 一条 trace，trace_id = request_id）
+    # 需配齐 host + 两把 key 并开启开关才生效；未配齐时 fail-open，绝不影响主流程
+    langfuse_enabled: bool = False
+    langfuse_host: str = ''                   # 自托管地址，如 http://localhost:3000
+    langfuse_public_key: str = ''
+    langfuse_secret_key: str = ''
+
     # 安全 / 生产加固配置
     # 请求鉴权（默认关闭；生产环境建议开启并设置 API_AUTH_KEY）
     api_auth_enabled:bool = False

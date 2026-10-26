@@ -21,6 +21,7 @@ from app.agent.aiops.verifier import verify_report, build_verification_section
 from app.agent.mcp_client import get_mcp_client_with_retry
 from app.config import config
 from app.services.token_usage import token_usage_callback
+from app.services.langfuse_trace import get_llm_callbacks
 from app.tools.knowledge_tool import retrieve_knowledge
 from app.tools.time_tool import get_current_time
 
@@ -163,7 +164,7 @@ async def replanner(state: PlanExecuteState) -> Dict[str, Any]:
             api_key=config.dashscope_api_key,
             base_url=config.dashscope_api_base,
             temperature=0,
-            callbacks=[token_usage_callback],
+            callbacks=get_llm_callbacks(),
         )
         return await _generate_response(state, llm)
 
@@ -195,7 +196,7 @@ async def replanner(state: PlanExecuteState) -> Dict[str, Any]:
         api_key=config.dashscope_api_key,
         base_url=config.dashscope_api_base,
         temperature=0,
-        callbacks=[token_usage_callback],
+        callbacks=get_llm_callbacks(),
     )
 
     # 格式化已执行观察 + 证据覆盖摘要

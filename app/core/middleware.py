@@ -14,6 +14,7 @@ from starlette.responses import JSONResponse
 
 from app.config import config
 from app.core.auth import Principal, Role, principal_context, principal_from_token
+from app.services.langfuse_trace import setup_trace_context, teardown_trace_context
 
 # 请求 ID 上下文变量，供业务代码（如需）读取当前请求的追踪 ID
 request_id_context: ContextVar[str] = ContextVar("request_id", default="-")
@@ -56,6 +57,7 @@ class RequestIDMiddleware:
 
         request_id = _header(scope, "x-request-id") or uuid.uuid4().hex
         token = request_id_context.set(request_id)
+        trace_token = setup_trace_context(request_id)
         start = time.perf_counter()
         status_code = 0
 
@@ -72,6 +74,7 @@ class RequestIDMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             request_id_context.reset(token)
+            teardown_trace_context(trace_token)
             duration_ms = (time.perf_counter() - start) * 1000
             method = scope.get("method", "")
             path = scope.get("path", "")
